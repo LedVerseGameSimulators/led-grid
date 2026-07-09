@@ -1,0 +1,2 @@
+*.ledb filter=lfs diff=lfs merge=lfs -text
+*.led filter=lfs diff=lfs merge=lfs -text

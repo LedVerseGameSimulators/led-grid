@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Floor Is Lava Simulator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+      user-select: none;
+    }
+
+    header {
+      width: 100%;
+      max-width: 1600px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0 16px;
+      border-bottom: 1px solid #1e1e2e;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-sq {
+      width: 32px; height: 32px;
+      background: #6c3ef5;
+      border-radius: 6px;
+      animation: pulse-sq 2s ease-in-out infinite;
+    }
+    @keyframes pulse-sq {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; background: #ff6b35; }
+    }
+
+    h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: 0.5px; color: #c8b4fa; }
+
+    .stats { display: flex; gap: 20px; font-size: 0.78rem; color: #888; }
+    .stat-item { display: flex; flex-direction: column; align-items: center; }
+    .stat-value { font-size: 1rem; font-weight: 700; color: #c8b4fa; }
+    .stat-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    #conn-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.78rem; padding: 4px 10px;
+      border-radius: 20px; border: 1px solid #333;
+      background: #111;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #666; }
+    .dot.connected { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
+    .dot.disconnected { background: #f44336; }
+    .dot.connecting { background: #ff9800; animation: blink 0.8s ease-in-out infinite; }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.2; } }
+
+    .canvas-wrapper {
+      position: relative;
+      overflow: auto;
+      max-width: 100%;
+      background: #06060c;
+      border: 1px solid #1a1a2e;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 0 60px rgba(108, 62, 245, 0.08);
+    }
+    canvas { display: block; cursor: pointer; border-radius: 4px; }
+
+    .controls {
+      width: 100%; max-width: 1600px;
+      display: flex; align-items: center; gap: 12px;
+      margin-top: 14px; flex-wrap: wrap;
+    }
+    button {
+      background: #1a1a2e; color: #c8b4fa;
+      border: 1px solid #3a2e6a; border-radius: 8px;
+      padding: 7px 16px; font-size: 0.8rem; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    button:hover { background: #2a2050; border-color: #6c3ef5; }
+    button.active { background: #6c3ef5; color: #fff; border-color: #6c3ef5; }
+    label { font-size: 0.78rem; color: #888; display: flex; align-items: center; gap: 6px; }
+    input[type=range] { accent-color: #6c3ef5; width: 80px; }
+
+    #log {
+      width: 100%; max-width: 1600px;
+      background: #06060c; border: 1px solid #1a1a2e; border-radius: 8px;
+      padding: 8px 12px; font-family: 'Courier New', monospace;
+      font-size: 0.72rem; color: #555; height: 56px;
+      overflow-y: auto; margin-top: 10px;
+    }
+    #log .entry { color: #777; }
+    #log .entry.press { color: #6c3ef5; }
+    #log .entry.frame { color: #2e7d32; }
+    #log .entry.error { color: #f44336; }
+
+    .tooltip {
+      position: absolute; background: rgba(0,0,0,0.85); color: #c8b4fa;
+      padding: 4px 10px; border-radius: 6px; font-size: 0.72rem;
+      pointer-events: none; display: none; z-index: 10; white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-sq"></div>
+    <h1>Floor Is Lava Simulator</h1>
+  </div>
+
+  <div class="stats">
+    <div class="stat-item"><span class="stat-value" id="stat-fps">0</span><span class="stat-label">FPS</span></div>
+    <div class="stat-item"><span class="stat-value" id="stat-grid">—</span><span class="stat-label">Grid</span></div>
+    <div class="stat-item"><span class="stat-value" id="stat-active">0</span><span class="stat-label">Active tiles</span></div>
+    <div class="stat-item"><span class="stat-value" id="stat-pressed">0</span><span class="stat-label">Pressed</span></div>
+  </div>
+
+  <div id="conn-badge">
+    <div class="dot connecting" id="dot"></div>
+    <span id="conn-label">Connecting…</span>
+  </div>
+</header>
+
+<div class="canvas-wrapper">
+  <canvas id="boardCanvas"></canvas>
+  <div class="tooltip" id="tooltip"></div>
+</div>
+
+<div class="controls">
+  <button id="btn-hold" onclick="toggleHold()">Hold mode: OFF</button>
+  <label>Cell size:
+    <input type="range" id="sizeSlider" min="16" max="60" value="38" oninput="onSizeChange(this.value)">
+    <span id="sizeLabel">38</span>px
+  </label>
+  <label>Glow:
+    <input type="range" id="glowSlider" min="0" max="30" value="12" oninput="onGlowChange(this.value)">
+  </label>
+  <button onclick="clearPressed()">Clear pressed</button>
+  <button onclick="toggleGrid()">Toggle grid lines</button>
+</div>
+
+<div id="log"></div>
+
+<script>
+// ── Configuration ──────────────────────────────────────────────────────
+const _gameId = new URLSearchParams(location.search).get('game_id') || '';
+const WS_URL = `ws://${location.host}/ws${_gameId ? '?game_id=' + _gameId : ''}`;
+
+// Floor Is Lava = 16×26 square grid, single rgb per cell.
+let ROWS = 16, COLS = 26;
+let CELL = 38;          // square cell side (px)
+let GAP = 3;            // gap between cells
+let GLOW_AMOUNT = 12;
+let showGrid = true;
+let holdMode = false;
+
+let grid = [];            // [row][col] = [r,g,b]
+let pressed = new Set();  // local simulator mouse overlay
+let serverPressed = new Set();  // hardware + server-tracked sim presses
+let pressedCount = 0;
+let activeTiles = 0;
+
+const canvas = document.getElementById('boardCanvas');
+const ctx = canvas.getContext('2d');
+const tooltip = document.getElementById('tooltip');
+
+function resizeCanvas() {
+  canvas.width  = COLS * (CELL + GAP) + GAP + 20;
+  canvas.height = ROWS * (CELL + GAP) + GAP + 20;
+}
+
+function cellTopLeft(row, col) {
+  return { x: 10 + GAP + col * (CELL + GAP), y: 10 + GAP + row * (CELL + GAP) };
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(v => Math.min(255, Math.max(0, v|0)).toString(16).padStart(2, '0')).join('');
+}
+function colorBrightness(r, g, b) { return 0.2126 * r + 0.7152 * g + 0.0722 * b; }
+
+// Single rgb per cell (Climb). Tolerate legacy 3-ring (take middle).
+function cellRGB(cell) {
+  if (!cell) return [0, 0, 0];
+  if (Array.isArray(cell[0])) {           // 3-ring -> middle
+    const m = cell[1] || cell[0];
+    return [m[0]|0, m[1]|0, m[2]|0];
+  }
+  return [cell[0]|0, cell[1]|0, cell[2]|0];
+}
+
+function drawFrame() {
+  if (!grid.length) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  activeTiles = 0;
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const row = grid[r] || [];
+      const [ri, gi, bi] = cellRGB(row[c]);
+      const key = `${r},${c}`;
+      const isPressed = pressed.has(key) || serverPressed.has(key);
+      const bright = colorBrightness(ri, gi, bi);
+      const on = (ri + gi + bi) > 2;
+      if (on) activeTiles++;
+
+      const { x, y } = cellTopLeft(r, c);
+
+      // Glow behind lit cells
+      if (bright > 10 && GLOW_AMOUNT > 0) {
+        const cx = x + CELL / 2, cy = y + CELL / 2;
+        const glow = ctx.createRadialGradient(cx, cy, CELL * 0.1, cx, cy, CELL * 0.9);
+        const alpha = Math.min(0.6, bright / 255 * 0.85);
+        glow.addColorStop(0, `rgba(${ri},${gi},${bi},${alpha})`);
+        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.fillStyle = glow;
+        ctx.fillRect(x - CELL * 0.4, y - CELL * 0.4, CELL * 1.8, CELL * 1.8);
+        ctx.restore();
+      }
+
+      // Cell fill (single color)
+      ctx.fillStyle = on ? rgbToHex(ri, gi, bi) : '#0d0d18';
+      roundRect(x, y, CELL, CELL, 6);
+      ctx.fill();
+
+      // Grid outline
+      if (showGrid) {
+        ctx.strokeStyle = on ? 'rgba(255,255,255,0.12)' : '#1e1e35';
+        ctx.lineWidth = 1;
+        roundRect(x, y, CELL, CELL, 6);
+        ctx.stroke();
+      }
+
+      // Pressed overlay
+      if (isPressed) {
+        ctx.fillStyle = 'rgba(255,255,255,0.30)';
+        roundRect(x, y, CELL, CELL, 6);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        roundRect(x, y, CELL, CELL, 6);
+        ctx.stroke();
+      }
+
+      // Label at large sizes
+      if (CELL >= 34) {
+        ctx.fillStyle = on ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.22)';
+        ctx.font = `${Math.max(8, CELL * 0.24)}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${r},${c}`, x + CELL / 2, y + CELL / 2);
+      }
+    }
+  }
+
+  document.getElementById('stat-active').textContent = activeTiles;
+  document.getElementById('stat-pressed').textContent = pressedCount;
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// ── WebSocket ──────────────────────────────────────────────────────────
+let ws, reconnectTimer;
+
+function connect() {
+  clearTimeout(reconnectTimer);
+  setStatus('connecting');
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => { setStatus('connected'); logEntry('Connected to simulator server', 'frame'); };
+  ws.onmessage = ({ data }) => {
+    try {
+      const msg = JSON.parse(data);
+      if (msg.type === 'frame') {
+        ROWS = msg.rows; COLS = msg.cols; grid = msg.grid;
+        if (Array.isArray(msg.pressed)) {
+          serverPressed = new Set(msg.pressed.map(p => `${p.row},${p.col}`));
+        }
+        document.getElementById('stat-fps').textContent = msg.fps;
+        document.getElementById('stat-grid').textContent = `${ROWS}×${COLS}`;
+        resizeCanvas();
+        drawFrame();
+      }
+    } catch (e) {}
+  };
+  ws.onerror = () => setStatus('disconnected');
+  ws.onclose = () => {
+    setStatus('disconnected');
+    logEntry('Disconnected — retrying in 2s…', 'error');
+    reconnectTimer = setTimeout(connect, 2000);
+  };
+}
+function sendMsg(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+// ── Tile interaction (square hit-test) ─────────────────────────────────
+function pixelToCell(px, py) {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const { x, y } = cellTopLeft(r, c);
+      if (px >= x && px < x + CELL && py >= y && py < y + CELL) return [r, c];
+    }
+  }
+  return null;
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const hit = pixelToCell(e.clientX - rect.left, e.clientY - rect.top);
+  if (!hit) return;
+  const [r, c] = hit, key = `${r},${c}`;
+  if (holdMode) {
+    if (pressed.has(key)) {
+      pressed.delete(key); pressedCount--;
+      sendMsg({ type: 'release', row: r, col: c });
+      logEntry(`Released [${r},${c}]`, 'press');
+    } else {
+      pressed.add(key); pressedCount++;
+      sendMsg({ type: 'press', row: r, col: c });
+      logEntry(`Pressed  [${r},${c}]`, 'press');
+    }
+  } else {
+    pressed.add(key); pressedCount++;
+    sendMsg({ type: 'press', row: r, col: c });
+    logEntry(`Pressed  [${r},${c}]`, 'press');
+  }
+  drawFrame();
+});
+
+canvas.addEventListener('mouseup', (e) => {
+  if (holdMode) return;
+  const rect = canvas.getBoundingClientRect();
+  const hit = pixelToCell(e.clientX - rect.left, e.clientY - rect.top);
+  if (!hit) return;
+  const [r, c] = hit, key = `${r},${c}`;
+  if (pressed.has(key)) {
+    pressed.delete(key); pressedCount--;
+    sendMsg({ type: 'release', row: r, col: c });
+    drawFrame();
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const hit = pixelToCell(e.clientX - rect.left, e.clientY - rect.top);
+  if (hit) {
+    const [r, c] = hit;
+    const [ri, gi, bi] = cellRGB((grid[r] || [])[c]);
+    tooltip.textContent = `[${r},${c}]  rgb(${ri},${gi},${bi})`;
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+    tooltip.style.top  = (e.clientY - rect.top  - 24) + 'px';
+  } else {
+    tooltip.style.display = 'none';
+  }
+});
+canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+// ── Controls ───────────────────────────────────────────────────────────
+function toggleHold() {
+  holdMode = !holdMode;
+  const btn = document.getElementById('btn-hold');
+  btn.textContent = `Hold mode: ${holdMode ? 'ON' : 'OFF'}`;
+  btn.classList.toggle('active', holdMode);
+}
+function onSizeChange(v) { CELL = parseInt(v); document.getElementById('sizeLabel').textContent = v; resizeCanvas(); drawFrame(); }
+function onGlowChange(v) { GLOW_AMOUNT = parseInt(v); drawFrame(); }
+function toggleGrid() { showGrid = !showGrid; drawFrame(); }
+function clearPressed() {
+  pressed.forEach(key => {
+    const [r, c] = key.split(',').map(Number);
+    sendMsg({ type: 'release', row: r, col: c });
+  });
+  pressed.clear(); pressedCount = 0; drawFrame();
+}
+
+// ── Status / logging ───────────────────────────────────────────────────
+function setStatus(s) {
+  document.getElementById('dot').className = 'dot ' + s;
+  document.getElementById('conn-label').textContent = s.charAt(0).toUpperCase() + s.slice(1);
+}
+const logEl = document.getElementById('log');
+let logEntryCount = 0;
+function logEntry(msg, cls = 'entry') {
+  const d = document.createElement('div');
+  d.className = `entry ${cls}`;
+  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  logEl.prepend(d);
+  logEntryCount++;
+  if (logEntryCount > 40) logEl.lastChild?.remove();
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────
+resizeCanvas();
+connect();
+</script>
+</body>
+</html>

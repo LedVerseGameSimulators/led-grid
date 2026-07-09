@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LED Hex — Leaderboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    header {
+      max-width: 1200px;
+      margin: 0 auto 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #1e1e2e;
+    }
+
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-hex {
+      width: 32px; height: 32px;
+      background: #6c3ef5;
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    }
+    h1 { font-size: 1.3rem; font-weight: 700; color: #c8b4fa; }
+
+    .nav-links { display: flex; gap: 12px; }
+    .nav-links a {
+      color: #888;
+      text-decoration: none;
+      font-size: 0.85rem;
+      padding: 6px 14px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      transition: all 0.15s;
+    }
+    .nav-links a:hover { color: #c8b4fa; border-color: #6c3ef5; background: #1a1a2e; }
+    .nav-links a.active { color: #fff; background: #6c3ef5; border-color: #6c3ef5; }
+
+    .controls {
+      max-width: 1200px;
+      margin: 0 auto 18px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    input[type=text], select {
+      background: #111;
+      color: #e0e0e0;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    input[type=text]:focus, select:focus { border-color: #6c3ef5; }
+    input[type=text] { width: 200px; }
+
+    button {
+      background: #1a1a2e;
+      color: #c8b4fa;
+      border: 1px solid #3a2e6a;
+      border-radius: 8px;
+      padding: 7px 16px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: #2a2050; border-color: #6c3ef5; }
+    button.primary { background: #6c3ef5; color: #fff; border-color: #6c3ef5; }
+    button.primary:hover { background: #7c4ef5; }
+
+    .stats-bar {
+      max-width: 1200px;
+      margin: 0 auto 20px;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      background: #0f0f1a;
+      border: 1px solid #1e1e35;
+      border-radius: 10px;
+      padding: 12px 20px;
+      min-width: 120px;
+      text-align: center;
+    }
+    .stat-card .val { font-size: 1.6rem; font-weight: 700; color: #c8b4fa; }
+    .stat-card .lbl { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #666; margin-top: 2px; }
+
+    .table-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      overflow-x: auto;
+      border: 1px solid #1a1a2e;
+      border-radius: 12px;
+      background: #0d0d1a;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    thead th {
+      background: #111128;
+      color: #888;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 12px 14px;
+      text-align: left;
+      cursor: pointer;
+      white-space: nowrap;
+      user-select: none;
+      border-bottom: 1px solid #1e1e35;
+    }
+    thead th:hover { color: #c8b4fa; }
+    thead th.sorted-asc::after  { content: " ↑"; color: #6c3ef5; }
+    thead th.sorted-desc::after { content: " ↓"; color: #6c3ef5; }
+
+    tbody tr {
+      border-bottom: 1px solid #111128;
+      transition: background 0.1s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #141425; }
+
+    tbody tr.top-1 td:first-child::before { content: "🥇 "; }
+    tbody tr.top-2 td:first-child::before { content: "🥈 "; }
+    tbody tr.top-3 td:first-child::before { content: "🥉 "; }
+
+    td {
+      padding: 11px 14px;
+      color: #ccc;
+      white-space: nowrap;
+    }
+
+    td.score    { font-weight: 700; color: #c8b4fa; font-size: 0.95rem; }
+    td.game     { color: #7ec8e3; font-weight: 600; }
+    td.level    { }
+    td.players  { color: #a8e6a3; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+    td.time     { color: #f5c842; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .badge-easy   { background: #1a3a1a; color: #4caf50; }
+    .badge-normal { background: #1a2e3a; color: #42a5f5; }
+    .badge-hard   { background: #3a1a1a; color: #ef5350; }
+    .badge-other  { background: #2a2a1a; color: #ffa726; }
+
+    .dual-score { display: flex; gap: 6px; }
+    .p1 { color: #64b5f6; }
+    .p2 { color: #f06292; }
+
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: #444;
+      font-size: 0.9rem;
+    }
+    .empty .icon { font-size: 3rem; margin-bottom: 12px; }
+
+    #refresh-btn { margin-left: auto; }
+
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-hex"></div>
+    <h1>LED Hex — Leaderboard</h1>
+  </div>
+  <nav class="nav-links">
+    <a href="/">Simulator</a>
+    <a href="/leaderboard" class="active">Leaderboard</a>
+  </nav>
+</header>
+
+<div class="stats-bar" id="stats-bar">
+  <div class="stat-card"><div class="val" id="stat-total">—</div><div class="lbl">Games Played</div></div>
+  <div class="stat-card"><div class="val" id="stat-best">—</div><div class="lbl">Best Score</div></div>
+  <div class="stat-card"><div class="val" id="stat-avg">—</div><div class="lbl">Avg Score</div></div>
+  <div class="stat-card"><div class="val" id="stat-games">—</div><div class="lbl">Unique Games</div></div>
+  <div class="stat-card"><div class="val" id="stat-players">—</div><div class="lbl">Unique Players</div></div>
+</div>
+
+<div class="controls">
+  <input type="text" id="search" placeholder="Search player or game…" oninput="applyFilters()">
+  <select id="filter-game" onchange="applyFilters()">
+    <option value="">All games</option>
+  </select>
+  <select id="filter-level" onchange="applyFilters()">
+    <option value="">All levels</option>
+  </select>
+  <select id="filter-players" onchange="applyFilters()">
+    <option value="">Any player count</option>
+    <option value="1">1 player</option>
+    <option value="2">2 players</option>
+  </select>
+  <button id="refresh-btn" class="primary" onclick="loadData()">↻ Refresh</button>
+</div>
+
+<div class="table-wrap">
+  <div class="loading" id="loading">Loading leaderboard…</div>
+  <table id="table" style="display:none">
+    <thead>
+      <tr>
+        <th onclick="sortBy('score')"     class="sorted-desc">Score</th>
+        <th onclick="sortBy('game_name')">Game</th>
+        <th onclick="sortBy('level')">Level</th>
+        <th onclick="sortBy('players')">Players</th>
+        <th onclick="sortBy('player_count')">Count</th>
+        <th onclick="sortBy('time_played_sec')">Time Played</th>
+        <th onclick="sortBy('duration_min')">Duration</th>
+        <th onclick="sortBy('score_p1')">P1 Score</th>
+        <th onclick="sortBy('score_p2')">P2 Score</th>
+        <th onclick="sortBy('lives_start')">Lives Start</th>
+        <th onclick="sortBy('lives_left')">Lives Left</th>
+        <th onclick="sortBy('played_at')">Played At</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">
+    <div class="icon">🏆</div>
+    No results yet — play a game to see scores here!
+  </div>
+</div>
+
+<script>
+let allRows = [];
+let sortKey = 'score';
+let sortAsc = false;
+
+async function loadData() {
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('table').style.display   = 'none';
+  document.getElementById('empty').style.display   = 'none';
+
+  try {
+    const res  = await fetch('/api/leaderboard?limit=500');
+    const data = await res.json();
+    allRows = data.rows || [];
+    populateFilters();
+    updateStats();
+    applyFilters();
+  } catch (e) {
+    document.getElementById('loading').textContent = 'Failed to load — is the simulator running?';
+  }
+}
+
+function populateFilters() {
+  const games  = [...new Set(allRows.map(r => r.game_name))].sort();
+  const levels = [...new Set(allRows.map(r => r.level).filter(Boolean))].sort();
+
+  const gSel = document.getElementById('filter-game');
+  const lSel = document.getElementById('filter-level');
+  const curG = gSel.value, curL = lSel.value;
+
+  gSel.innerHTML = '<option value="">All games</option>' +
+    games.map(g => `<option value="${g}">${g}</option>`).join('');
+  lSel.innerHTML = '<option value="">All levels</option>' +
+    levels.map(l => `<option value="${l}">${l}</option>`).join('');
+
+  gSel.value = curG;
+  lSel.value = curL;
+}
+
+function updateStats() {
+  const scores = allRows.map(r => r.score).filter(s => s !== null && s !== undefined);
+  const games  = new Set(allRows.map(r => r.game_name));
+  const players = new Set(allRows.flatMap(r => (r.players || '').split(',').map(p => p.trim()).filter(Boolean)));
+
+  document.getElementById('stat-total').textContent   = allRows.length;
+  document.getElementById('stat-best').textContent    = scores.length ? Math.max(...scores).toFixed(0) : '—';
+  document.getElementById('stat-avg').textContent     = scores.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(0) : '—';
+  document.getElementById('stat-games').textContent   = games.size;
+  document.getElementById('stat-players').textContent = players.size;
+}
+
+function applyFilters() {
+  const search  = document.getElementById('search').value.toLowerCase();
+  const game    = document.getElementById('filter-game').value;
+  const level   = document.getElementById('filter-level').value;
+  const pCount  = document.getElementById('filter-players').value;
+
+  let rows = allRows.filter(r => {
+    if (game   && r.game_name !== game)                      return false;
+    if (level  && r.level !== level)                         return false;
+    if (pCount && r.player_count != parseInt(pCount))        return false;
+    if (search) {
+      const hay = (r.players || '') + (r.game_name || '');
+      if (!hay.toLowerCase().includes(search))               return false;
+    }
+    return true;
+  });
+
+  rows = rows.slice().sort((a, b) => {
+    let av = a[sortKey], bv = b[sortKey];
+    if (av === null || av === undefined) av = sortAsc ? Infinity : -Infinity;
+    if (bv === null || bv === undefined) bv = sortAsc ? Infinity : -Infinity;
+    if (typeof av === 'string') return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortAsc ? av - bv : bv - av;
+  });
+
+  renderTable(rows);
+}
+
+function sortBy(key) {
+  if (sortKey === key) {
+    sortAsc = !sortAsc;
+  } else {
+    sortKey = key;
+    sortAsc = false;
+  }
+  // Update header classes
+  document.querySelectorAll('thead th').forEach(th => {
+    th.classList.remove('sorted-asc', 'sorted-desc');
+    if (th.getAttribute('onclick') === `sortBy('${key}')`) {
+      th.classList.add(sortAsc ? 'sorted-asc' : 'sorted-desc');
+    }
+  });
+  applyFilters();
+}
+
+function levelBadge(level) {
+  if (!level) return '<span class="badge badge-other">—</span>';
+  const l = level.toUpperCase();
+  if (l.includes('SIMPL') || l.includes('EASY') || l === '1')
+    return `<span class="badge badge-easy">${level}</span>`;
+  if (l.includes('NORMAL') || l === '2')
+    return `<span class="badge badge-normal">${level}</span>`;
+  if (l.includes('HARD') || l.includes('ADVANCE') || l === '3')
+    return `<span class="badge badge-hard">${level}</span>`;
+  return `<span class="badge badge-other">${level}</span>`;
+}
+
+function fmtTime(sec) {
+  if (sec === null || sec === undefined) return '—';
+  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  return `${m}m ${s.toString().padStart(2,'0')}s`;
+}
+
+function renderTable(rows) {
+  document.getElementById('loading').style.display = 'none';
+
+  if (!rows.length) {
+    document.getElementById('table').style.display = 'none';
+    document.getElementById('empty').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('empty').style.display  = 'none';
+  document.getElementById('table').style.display  = 'table';
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = rows.map((r, i) => {
+    const rankClass = i === 0 ? 'top-1' : i === 1 ? 'top-2' : i === 2 ? 'top-3' : '';
+    const p1 = r.score_p1 !== null && r.score_p1 !== undefined ? `<span class="p1">P1: ${r.score_p1}</span>` : '—';
+    const p2 = r.score_p2 !== null && r.score_p2 !== undefined ? `<span class="p2">P2: ${r.score_p2}</span>` : '—';
+    const livesLeft = r.lives_left !== null && r.lives_left !== undefined ? r.lives_left : '—';
+    const livesStart = r.lives_start !== null && r.lives_start !== undefined ? r.lives_start : '—';
+
+    return `<tr class="${rankClass}">
+      <td class="score">${r.score !== null ? r.score : '—'}</td>
+      <td class="game">${r.game_name || '—'}</td>
+      <td class="level">${levelBadge(r.level)}</td>
+      <td class="players" title="${r.players || ''}">${r.players || '—'}</td>
+      <td>${r.player_count !== null ? r.player_count : '—'}</td>
+      <td class="time">${fmtTime(r.time_played_sec)}</td>
+      <td>${r.duration_min !== null ? r.duration_min + ' min' : '—'}</td>
+      <td>${p1}</td>
+      <td>${p2}</td>
+      <td>${livesStart}</td>
+      <td>${livesLeft}</td>
+      <td style="color:#555;font-size:0.78rem">${(r.played_at || '').replace('T',' ')}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Auto-refresh every 10 seconds while page is open
+loadData();
+setInterval(loadData, 10000);
+</script>
+</body>
+</html>

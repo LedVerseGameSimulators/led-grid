@@ -101,14 +101,20 @@ export default function SimulatorScreen({ config, onGameEnd }) {
         body: JSON.stringify({
           card_id: config.cardId,
           card_id2: config.cardId2 || null,
-          level: config.level,
-          score: finalScore,
-          score2: finalScore2,
+          level: config.level,                       // starting level picked
+          end_level: st.current_level ?? config.level, // level ended on
+          score: finalScore,                         // raw P1 (on-screen)
+          score2: finalScore2,                       // raw P2 (on-screen)
+          final_score: st.final_score ?? finalScore,   // normalized P1
+          final_score2: st.final_score2 ?? finalScore2,// normalized P2
           multiplayer: finalMultiplayer,
           life: finalLife,
           lives_start: st.max_life ?? 0,
           result: st.result ?? null,
-          time_used: finalTime
+          time_used: finalTime,                      // full session duration
+          levels_cleared: st.levels_cleared ?? 0,
+          difficulty: config.difficulty ?? '',
+          started_at: st.started_at ?? ''
         })
       })
       await fetch(`${API_URL}/logout`, {

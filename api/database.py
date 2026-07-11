@@ -1,7 +1,7 @@
 """
 Database Wrapper - MySQL connection and queries
 """
-from .config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, GAME_NAME
+from .config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, GAME_NAME, GAMES_ROOT
 from loguru import logger
 import sys
 import os
@@ -16,8 +16,10 @@ try:
 except ImportError as e:
     logger.warning(f"DBOperation not available (OK for headless testing): {e}")
 
-# Our own scores live in the same sqlite file as the game DB.
-_SCORES_DB = "/Users/apple/parallel-work/ledhexagon_clone/setting/ledplaydb.sqlite"
+# Each game machine owns its local score store (source of truth; the central
+# RFID server polls it over HTTP). Per-repo path = dev matches prod topology
+# (5 machines = 5 files), so no cross-game contamination via a shared file.
+_SCORES_DB = str(GAMES_ROOT) + "/setting/ledplaydb.sqlite"
 
 
 class Database:
@@ -36,6 +38,7 @@ class Database:
 
     # ===== OUR SCORES TABLE (kiosk leaderboard) =====
     def _scores_conn(self):
+        os.makedirs(os.path.dirname(_SCORES_DB), exist_ok=True)
         return sqlite3.connect(_SCORES_DB, timeout=5)
 
     def _ensure_scores_table(self):
@@ -59,7 +62,11 @@ class Database:
                 """)
                 # Add columns if upgrading an older table (ignore if present).
                 for col, typ in (("lives_start", "INTEGER"), ("result", "INTEGER"),
-                                 ("score2", "INTEGER"), ("game", "TEXT")):
+                                 ("score2", "INTEGER"), ("game", "TEXT"),
+                                 ("card_id2", "TEXT"), ("multiplayer", "INTEGER"),
+                                 ("final_score", "REAL"), ("final_score2", "REAL"),
+                                 ("levels_cleared", "INTEGER"), ("end_level", "TEXT"),
+                                 ("difficulty", "TEXT"), ("started_at", "TEXT")):
                     try:
                         con.execute(f"ALTER TABLE hex_scores ADD COLUMN {col} {typ}")
                     except Exception:
@@ -104,17 +111,28 @@ class Database:
             with self._scores_lock:
                 con = self._scores_conn()
                 con.execute(
-                    "INSERT INTO hex_scores (card_id, level, score, score2, life, "
-                    "lives_start, result, time_used, ts, game) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    "INSERT INTO hex_scores (card_id, card_id2, multiplayer, level, "
+                    "end_level, score, score2, final_score, final_score2, life, "
+                    "lives_start, result, time_used, levels_cleared, difficulty, "
+                    "started_at, ts, game) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         str(game_info.get("card_id", "")),
+                        str(game_info.get("card_id2", "") or ""),
+                        1 if game_info.get("multiplayer") else 0,
                         str(game_info.get("level", "")),
+                        str(game_info.get("end_level", "") or ""),
                         int(game_info.get("score", 0)),
                         int(game_info.get("score2", 0)),
+                        float(game_info.get("final_score", 0.0)),
+                        float(game_info.get("final_score2", 0.0)),
                         int(game_info.get("life", 0)),
                         int(game_info.get("lives_start", 0)),
                         game_info.get("result"),
                         float(game_info.get("time_used", 0.0)),
+                        int(game_info.get("levels_cleared", 0)),
+                        str(game_info.get("difficulty", "") or ""),
+                        str(game_info.get("started_at", "") or ""),
                         datetime.datetime.now().isoformat(timespec="seconds"),
                         GAME_NAME,
                     ),
@@ -186,13 +204,18 @@ class Database:
             with self._scores_lock:
                 con = self._scores_conn()
                 rows = con.execute(
-                    "SELECT card_id, level, score, score2, life, result, time_used, ts, game "
-                    "FROM hex_scores WHERE ts > ? ORDER BY ts ASC",
-                    (since,),
+                    "SELECT card_id, card_id2, multiplayer, level, end_level, "
+                    "score, score2, final_score, final_score2, life, lives_start, "
+                    "result, time_used, levels_cleared, difficulty, started_at, ts, game "
+                    "FROM hex_scores WHERE ts > ? AND game = ? ORDER BY ts ASC",
+                    (since, GAME_NAME),
                 ).fetchall()
                 con.close()
             return [dict(zip(
-                ["card_id", "level", "score", "score2", "life", "result", "time_used", "ts", "game"], r
+                ["card_id", "card_id2", "multiplayer", "level", "end_level",
+                 "score", "score2", "final_score", "final_score2", "life",
+                 "lives_start", "result", "time_used", "levels_cleared",
+                 "difficulty", "started_at", "ts", "game"], r
             )) for r in rows]
         except Exception as e:
             logger.error(f"Error getting scores since {since}: {e}")

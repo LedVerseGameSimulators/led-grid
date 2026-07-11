@@ -380,13 +380,21 @@ async def save_score(payload: dict):
     try:
         ok = db.record_game_score({
             "card_id": payload.get("card_id", ""),
-            "level": payload.get("level", ""),
-            "score": payload.get("score", 0),
-            "score2": payload.get("score2", 0),
+            "card_id2": payload.get("card_id2", ""),
+            "multiplayer": payload.get("multiplayer", False),
+            "level": payload.get("level", ""),          # starting level picked
+            "end_level": payload.get("end_level", ""),  # level session ended on
+            "score": payload.get("score", 0),           # raw P1
+            "score2": payload.get("score2", 0),         # raw P2
+            "final_score": payload.get("final_score", 0.0),    # normalized P1
+            "final_score2": payload.get("final_score2", 0.0),  # normalized P2
             "life": payload.get("life", 0),
             "lives_start": payload.get("lives_start", 0),
             "result": payload.get("result"),
-            "time_used": payload.get("time_used", 0.0),
+            "time_used": payload.get("time_used", 0.0),  # full session duration
+            "levels_cleared": payload.get("levels_cleared", 0),
+            "difficulty": payload.get("difficulty", ""),
+            "started_at": payload.get("started_at", ""),
         })
         return {"success": ok}
     except Exception as e:

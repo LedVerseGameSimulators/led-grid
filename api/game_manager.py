@@ -134,6 +134,38 @@ def _hw_draw_floor(layout_type, led_2d):
     safe = [[_normalize_rgb(led_2d[r][c]) for c in range(cols)] for r in range(rows)]
     _hw_led_control.draw_screen_by_com(layout_type, safe)
 
+
+def _hw_blank_floor(led_table):
+    """Send one all-black frame to the physical floor.
+
+    The per-frame HW draw call only happens inside the active frame
+    callback (`_hw_draw_floor`, above) while a level is running. The
+    moment a session/game ends or is stopped, nothing writes to the
+    floor again, so it stays lit with whatever pattern was on screen at
+    that instant. Call this at every session-end / stop / clear_all()
+    path so the floor actually goes dark. Reuses the exact same
+    `_hw_draw_floor` -> `led.led_control.draw_screen_by_com` call used
+    for normal frames, just with an all-[0,0,0] grid, gated the same
+    way (USE_SERIAL_HD and _hw_led_control is not None).
+
+    NOTE: not yet validated on real hardware — this is a first-time
+    hardware test for this game. Confirm onsite that the floor actually
+    blanks (see HARDWARE_VALIDATION.md).
+    """
+    if not (USE_SERIAL_HD and _hw_led_control is not None) or led_table is None:
+        return
+    try:
+        rows = getattr(led_table, "led_row", None)
+        cols = getattr(led_table, "led_col", None)
+        if not rows or not cols:
+            return
+        blank = [[[0, 0, 0] for _ in range(cols)] for _ in range(rows)]
+        with _hw_serial_lock:
+            _hw_draw_floor(_hw_layout_type, blank)
+    except Exception as e:
+        logger.warning(f"HW blank failed: {e}")
+
+
 def _hw_init():
     global _hw_led_control, _hw_layout_type
     if _hw_led_control is not None:
@@ -933,6 +965,7 @@ class GameManager:
                                    f"it may keep hitting the hardware concurrently "
                                    f"with the next game")
                     self.zombie_threads.append({"game_id": gid, "detected_at": time.time()})
+            _hw_blank_floor(getattr(g, "led_table", None))
         with self.lock:
             self.games.clear()
         logger.info("Cleared all existing games")
@@ -1420,6 +1453,7 @@ class GameManager:
                                    f"session cannot run: {game_id}")
                     game.update_state(game_over=True, game_over_reason="no_levels",
                                       time_left=0)
+                    _hw_blank_floor(game.led_table)
                     game.running = False
                     return
 
@@ -1520,6 +1554,7 @@ class GameManager:
                                   game_over_reason=final_reason, result=final_result,
                                   levels_cleared=game.levels_cleared,
                                   final_score=final_score, final_score2=final_score2)
+                _hw_blank_floor(game.led_table)
                 game.running = False
 
             except Exception as e:
@@ -1527,6 +1562,7 @@ class GameManager:
                 logger.error(f"Game error {game_id}: {e}")
                 logger.error(f"Traceback: {traceback.format_exc()}")
                 game.running = False
+                _hw_blank_floor(getattr(game, "led_table", None))
                 game.update_state(
                     game_over=True,
                     game_over_reason=str(e)
@@ -1544,6 +1580,7 @@ class GameManager:
         game.running = False
         if game.thread:
             game.thread.join(timeout=5)
+        _hw_blank_floor(getattr(game, "led_table", None))
 
         final_state = game.get_state()
 

@@ -28,6 +28,8 @@ export default function App() {
     cardId2: '',
     playerName: '',
     playerName2: '',
+    minutesRemaining: null,
+    minutesRemaining2: null,
   })
   const [result, setResult] = useState(null)
   const [booting, setBooting] = useState(true)
@@ -68,13 +70,16 @@ export default function App() {
   }
 
   // Step 3: login (1 or 2 cards, or guest name for anonymous)
-  const handleLogin = (cardId, cardId2, playerName = '', playerName2 = '') => {
+  const handleLogin = (cardId, cardId2, playerName = '', playerName2 = '',
+                       minutesRemaining = null, minutesRemaining2 = null) => {
     setGameConfig(prev => ({
       ...prev,
       cardId: cardId || '',
       cardId2: cardId2 || '',
       playerName: playerName || '',
       playerName2: playerName2 || '',
+      minutesRemaining,
+      minutesRemaining2,
     }))
     setScreen(S.COUNTDOWN)
   }

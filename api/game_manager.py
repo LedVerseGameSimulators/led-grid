@@ -10,6 +10,7 @@ import asyncio
 import os
 import sys
 import math
+import json
 import shelve as _shelve
 from typing import Dict, Optional
 from loguru import logger
@@ -626,6 +627,24 @@ class GameInstance:
         # Real settings (game length + HP). Loaded from led_parameter.
         _s = load_real_settings()
         self.game_time_sec = _s["game_time_sec"]   # session limit (300s)
+
+        # Runtime override pushed from the central RFID server (Settings page):
+        # default_difficulty/session_minutes. Applied after the shelve-derived
+        # defaults above but only takes effect for difficulty when the caller
+        # didn't already pass one explicitly (StartGameRequest.difficulty is
+        # required today, so this is a no-op until a caller omits it).
+        _override_path = GAMES_ROOT / "setting" / "runtime_overrides.json"
+        if _override_path.exists():
+            try:
+                with open(_override_path) as _f:
+                    _overrides = json.load(_f)
+                if _overrides.get("session_minutes"):
+                    self.game_time_sec = float(_overrides["session_minutes"]) * 60.0
+                if _overrides.get("default_difficulty") and not getattr(self, "difficulty", None):
+                    self.difficulty = _overrides["default_difficulty"]
+            except Exception as _e:
+                logger.warning(f"Could not read runtime overrides: {_e}")
+
         self.board_time_sec = 1e9                   # board length (max group end); set on load
         self.result = None                          # 0 lose / 1 complete / 2 timeout
         self.max_life = _s["life_value"]           # 20 HP

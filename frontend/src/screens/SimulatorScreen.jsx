@@ -271,6 +271,20 @@ export default function SimulatorScreen({ config, onGameEnd }) {
         )}
       </div>
 
+      {(config.playerName || config.playerName2) && (
+        <div style={{
+          padding: '8px 20px', fontSize: '0.8rem', color: '#9aa0a6',
+          borderTop: '1px solid #1e1e2e', background: '#0a0a12',
+          display: 'flex', gap: '1.5rem',
+        }}>
+          {config.playerName && (
+            <span>👤 {config.playerName}{config.minutesRemaining != null ? ` — ${Math.round(config.minutesRemaining)} min left` : ''}</span>
+          )}
+          {config.playerName2 && (
+            <span style={{ color: '#ffaa44' }}>👤 {config.playerName2}{config.minutesRemaining2 != null ? ` — ${Math.round(config.minutesRemaining2)} min left` : ''}</span>
+          )}
+        </div>
+      )}
       <div style={{
         padding: '10px 20px',
         fontSize: '0.75rem',

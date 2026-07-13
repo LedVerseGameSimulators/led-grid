@@ -301,6 +301,33 @@ async def get_game_settings():
     }
 
 
+# ============= RUNTIME SETTINGS OVERRIDE (pushed from central RFID server) =====
+@app.post("/settings")
+async def update_settings(body: dict):
+    """Runtime overrides pushed from the central RFID server: default
+    difficulty and session length. Written to a small local JSON file,
+    read at marathon-start time -- does not touch the original shelve
+    config (which stays read-only, ported from the decompiled source)."""
+    path = GAMES_ROOT / "setting" / "runtime_overrides.json"
+    overrides = {}
+    if body.get("default_difficulty"):
+        overrides["default_difficulty"] = body["default_difficulty"]
+    if body.get("session_minutes"):
+        overrides["session_minutes"] = int(body["session_minutes"])
+    with open(path, "w") as f:
+        json.dump(overrides, f)
+    return {"success": True, "overrides": overrides}
+
+
+@app.get("/settings")
+async def get_settings():
+    path = GAMES_ROOT / "setting" / "runtime_overrides.json"
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        return json.load(f)
+
+
 # ============= GAME LEVELS ENDPOINT =============
 @app.get("/levels")
 async def get_levels():

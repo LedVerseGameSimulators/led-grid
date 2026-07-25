@@ -1,25 +1,50 @@
-const GAMES = [
-  { id: 'grid', name: 'Floor Is Lava', emoji: '🌋' },
+const MODES = [
+  {
+    id: 'single',
+    title: 'Single Player',
+    desc: 'One player challenge',
+    icon: '1',
+  },
+  {
+    id: 'multi',
+    title: 'Multiplayer',
+    desc: 'Two players head-to-head',
+    icon: '2',
+  },
+  {
+    id: 'group',
+    title: 'Group',
+    desc: 'Team play mode',
+    icon: 'G',
+  },
 ]
 
-export default function GameSelectionScreen({ onSelect }) {
+export default function GameSelectionScreen({ onSelect, loading = false }) {
   return (
     <div className="screen">
-      <div className="card">
-        <h1>🌋 Floor Is Lava</h1>
-        <p style={{ textAlign: 'center', color: '#888', marginTop: '-10px' }}>
-          Select game to play
-        </p>
-        <div className="grid" style={{ gridTemplateColumns: '1fr', marginTop: '20px' }}>
-          {GAMES.map(g => (
+      <div className="landing">
+        <header className="landing-hero">
+          <h1 className="landing-brand">ACTIVERSE</h1>
+          <p className="landing-product">Floor Is Lava</p>
+          <p className="landing-tagline">
+            {loading ? 'Loading group level…' : 'Choose how you want to play'}
+          </p>
+        </header>
+
+        <div className="mode-grid" aria-busy={loading || undefined}>
+          {MODES.map((mode) => (
             <button
-              key={g.id}
+              key={mode.id}
               type="button"
-              className="option-btn"
-              onClick={() => onSelect(g.id)}
+              className="mode-card"
+              disabled={loading}
+              onClick={() => onSelect(mode.id)}
             >
-              <div style={{ fontSize: '2rem', marginBottom: '8px' }}>{g.emoji}</div>
-              <div>{g.name}</div>
+              <span className="mode-card-icon" aria-hidden="true">{mode.icon}</span>
+              <span className="mode-card-text">
+                <span className="mode-card-title">{mode.title}</span>
+                <span className="mode-card-desc">{mode.desc}</span>
+              </span>
             </button>
           ))}
         </div>

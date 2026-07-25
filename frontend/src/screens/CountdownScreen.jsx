@@ -43,16 +43,13 @@ export default function CountdownScreen({ config, onDone }) {
   return (
     <div className="screen">
       <div className="card" style={{ textAlign: 'center' }}>
-        <p style={{ color: '#888', marginBottom: '10px' }}>
+        <p className="countdown-meta">
           {config.game?.toUpperCase()} · Level {config.level} · {config.difficulty?.toUpperCase()}
         </p>
-        <div style={{
-          fontSize: '6rem', fontWeight: 'bold', lineHeight: 1.2,
-          color: n === 0 ? '#51cf66' : '#c8b4fa'
-        }}>
+        <div className={`countdown-num${n === 0 ? ' go' : ''}`}>
           {n === 0 ? 'GO!' : n}
         </div>
-        <p style={{ color: '#666', marginTop: '10px' }}>Get ready…</p>
+        <p className="countdown-hint">Get ready…</p>
       </div>
     </div>
   )

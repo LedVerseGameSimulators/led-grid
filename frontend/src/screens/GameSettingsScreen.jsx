@@ -11,6 +11,25 @@ const CAT_LABEL = {
 
 const DIFFICULTIES = ['easy', 'normal', 'hard']
 
+
+function firstMatchingCategory(cats, players) {
+  const keys = Object.keys(cats || {})
+  for (const cat of keys) {
+    const lvls = cats[cat] || []
+    const ok = players === 2
+      ? lvls.some(l => l.multiplayer)
+      : lvls.some(l => !l.multiplayer)
+    if (ok) return cat
+  }
+  return keys[0] || ''
+}
+
+function firstMatchingLevel(pool, players) {
+  if (!pool?.length) return null
+  if (players === 2) return pool.find(l => l.multiplayer) || pool[0]
+  return pool.find(l => !l.multiplayer) || pool[0]
+}
+
 export default function GameSettingsScreen({ game, playerCount, onConfirm, onBack }) {
   const players = playerCount ?? 1
   const [categories, setCategories] = useState({})
@@ -18,27 +37,42 @@ export default function GameSettingsScreen({ game, playerCount, onConfirm, onBac
   const [level, setLevel]           = useState('')
   const [difficulty, setDifficulty] = useState('normal')
   const [loading, setLoading]       = useState(true)
+  const [loadError, setLoadError]   = useState('')
 
   useEffect(() => {
-    const defaultCat = players === 2 ? '2player' : 'easy'
+    const preferred = players === 2 ? '2player' : 'easy'
     setLoading(true)
+    setLoadError('')
     fetch(`${API_URL}/levels`)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error(`Levels API HTTP ${r.status}`)
+        return r.json()
+      })
       .then(d => {
-        if (d.success) {
-          const cats = d.categories || {}
-          setCategories(cats)
-          setCategory(defaultCat)
-          const pool = cats[defaultCat] || []
-          const first = players === 2
-            ? pool.find(l => l.multiplayer)
-            : pool.find(l => !l.multiplayer)
-          if (first) setLevel(first.id)
-          else if (pool[0]) setLevel(pool[0].id)
-          else setLevel('001')
+        if (!d.success) throw new Error(d.error || 'Levels API returned success=false')
+        const cats = d.categories || {}
+        setCategories(cats)
+        const defaultCat = (cats[preferred] && (
+          players === 2
+            ? (cats[preferred] || []).some(l => l.multiplayer)
+            : (cats[preferred] || []).some(l => !l.multiplayer)
+        )) ? preferred : firstMatchingCategory(cats, players)
+        setCategory(defaultCat || preferred)
+        const pool = cats[defaultCat] || []
+        const first = firstMatchingLevel(pool, players)
+        if (first) setLevel(first.id)
+        else setLevel('001')
+        if (!defaultCat) {
+          setLoadError(players === 2
+            ? 'No multiplayer levels available for this game.'
+            : 'No single-player levels found.')
         }
       })
-      .catch(console.error)
+      .catch(err => {
+        console.error(err)
+        setLoadError(`Could not load levels from ${API_URL}/levels — is the game API running?`)
+        setCategories({})
+      })
       .finally(() => setLoading(false))
   }, [players])
 
@@ -51,7 +85,8 @@ export default function GameSettingsScreen({ game, playerCount, onConfirm, onBac
   const handleCategory = (cat) => {
     setCategory(cat)
     const lvls = filteredLevels(cat)
-    if (lvls.length) setLevel(lvls[0].id)
+    const first = firstMatchingLevel(lvls, players)
+    if (first) setLevel(first.id)
   }
 
   const availableCats = Object.keys(categories).filter(cat => {
@@ -90,6 +125,10 @@ export default function GameSettingsScreen({ game, playerCount, onConfirm, onBac
         <p className="settings-subtitle">
           Game Settings · {players === 2 ? '2 Players' : '1 Player'}
         </p>
+
+        {loadError && (
+          <div className="error" style={{ marginTop: 16 }}>{loadError}</div>
+        )}
 
         {/* Category rail */}
         <h2 className="settings-section-label">CATEGORY</h2>

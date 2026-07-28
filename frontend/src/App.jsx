@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import LoginScreen         from './screens/LoginScreen'
 import GameSelectionScreen from './screens/GameSelectionScreen'
 import GameSettingsScreen  from './screens/GameSettingsScreen'
@@ -36,9 +36,6 @@ export default function App() {
   const [gameConfig, setGameConfig] = useState(DEFAULT_CONFIG)
   const [result, setResult] = useState(null)
   const [booting, setBooting] = useState(true)
-  const [groupLoading, setGroupLoading] = useState(false)
-  const groupRequestIdRef = useRef(0)
-  const groupLoadingRef = useRef(false)
 
   // Resume running game on reload
   useEffect(() => {
@@ -60,68 +57,22 @@ export default function App() {
       .finally(() => setBooting(false))
   }, [])
 
-  // Pick first 1P level from first 1P-capable category (prefer 'easy', then Object.keys order)
-  const pickFirst1PLevel = (categories) => {
-    const cats = categories || {}
-    const keys = Object.keys(cats)
-    const ordered = keys.includes('easy')
-      ? ['easy', ...keys.filter(k => k !== 'easy')]
-      : keys
-    for (const cat of ordered) {
-      const oneP = (cats[cat] || []).find(l => !l.multiplayer)
-      if (oneP) return oneP.id
-    }
-    return null
-  }
-
-  const clearGroupLoading = () => {
-    groupLoadingRef.current = false
-    setGroupLoading(false)
-  }
-
-  const applyGroupConfig = (levelId) => {
-    setGameConfig(prev => ({
-      ...prev,
-      game: 'grid',
-      playMode: 'group',
-      playerCount: 1,
-      level: levelId,
-      difficulty: 'normal',
-      resumeGameId: undefined,
-    }))
-    clearGroupLoading()
-    setScreen(S.LOGIN)
-  }
-
   // Step 1: play mode selected (single | multi | group)
   const handleModeSelect = (mode) => {
-    // Sync guard: block double-tap before React re-renders disabled cards
-    if (groupLoadingRef.current) return
-
     if (mode === 'group') {
-      groupLoadingRef.current = true
-      setGroupLoading(true)
-      const requestId = ++groupRequestIdRef.current
-      // Group skips settings: auto-pick first 1P level → LOGIN
-      fetch(`${API_URL}/levels`)
-        .then(r => r.json())
-        .then(d => {
-          if (requestId !== groupRequestIdRef.current) return
-          const levelId = d.success
-            ? pickFirst1PLevel(d.categories) || DEFAULT_CONFIG.level
-            : DEFAULT_CONFIG.level
-          applyGroupConfig(levelId)
-        })
-        .catch(() => {
-          if (requestId !== groupRequestIdRef.current) return
-          applyGroupConfig(DEFAULT_CONFIG.level)
-        })
+      // Group skips settings; backend builds playlist from games/source_group/
+      setGameConfig(prev => ({
+        ...prev,
+        game: 'grid',
+        playMode: 'group',
+        playerCount: 1,
+        level: 'auto',
+        difficulty: 'normal',
+        resumeGameId: undefined,
+      }))
+      setScreen(S.LOGIN)
       return
     }
-
-    // Invalidate any in-flight group /levels fetch
-    groupRequestIdRef.current += 1
-    clearGroupLoading()
 
     if (mode === 'multi') {
       setGameConfig(prev => ({
@@ -195,7 +146,6 @@ export default function App() {
       {screen === S.GAME_SELECT && (
         <GameSelectionScreen
           onSelect={handleModeSelect}
-          loading={groupLoading}
         />
       )}
       {screen === S.SETTINGS && (

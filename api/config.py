@@ -16,6 +16,11 @@ GAME_NAME = "grid"
 GAME_DIR = GAMES_ROOT
 GAME_SOURCE_DIR = GAME_DIR / "game_play"
 GAME_LEVEL_DIR = GAME_DIR / "source"
+# Group-mode playlist root (same dash-folder layout as 1P tiers under source/).
+# Override with GAMES_GROUP_LEVEL_DIR if needed.
+GAME_GROUP_LEVEL_DIR = Path(
+    os.getenv("GAMES_GROUP_LEVEL_DIR", str(GAME_DIR / "source_group"))
+)
 GAME_SETTING_DIR = GAME_DIR / "setting"
 
 # Add game source to path for imports

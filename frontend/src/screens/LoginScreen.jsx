@@ -24,6 +24,10 @@ async function validateRfidCard(cardId) {
 
 function PlayerDetails({ cardId, info, label }) {
   if (!info?.valid) return null
+  const memberNames = (Array.isArray(info.members) ? info.members : [])
+    .map((m) => (typeof m === 'string' ? m : m?.name))
+    .filter(Boolean)
+
   return (
     <div className="player-details">
       <div className="player-details-title">{label} — Card validated</div>
@@ -32,10 +36,23 @@ function PlayerDetails({ cardId, info, label }) {
           <dt>Card ID</dt>
           <dd>{cardId}</dd>
         </div>
-        <div>
-          <dt>Player name</dt>
-          <dd>{info.player_name || '—'}</dd>
-        </div>
+        {memberNames.length > 0 ? (
+          <div>
+            <dt>Team</dt>
+            <dd>
+              <ul className="team-members">
+                {memberNames.map((name, i) => (
+                  <li key={`${name}-${i}`}>{name}</li>
+                ))}
+              </ul>
+            </dd>
+          </div>
+        ) : (
+          <div>
+            <dt>Player name</dt>
+            <dd>{info.player_name || '—'}</dd>
+          </div>
+        )}
         <div>
           <dt>Minutes remaining</dt>
           <dd>{info.minutes_remaining ?? '—'}</dd>

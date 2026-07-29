@@ -934,6 +934,16 @@ button:disabled {
   word-break: break-all;
 }
 
+.team-members {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.team-members li {
+  line-height: 1.35;
+}
+
 .login-status {
   color: var(--text-muted);
   font-size: 0.85rem;

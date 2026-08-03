@@ -1,0 +1,6 @@
+'tread_red_time', (0, 14)
+'life_value_count_time', (512, 13)
+'com_is_block', (1024, 4)
+'log', (1536, 4)
+'game_display', (2048, 4)
+'hardware_connection', (2560, 4)

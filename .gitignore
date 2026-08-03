@@ -7,9 +7,8 @@ logs/
 *.log
 frontend/node_modules/
 frontend/dist/
-games/setting/*.dat
-games/setting/*.bak
-games/setting/*.dir
+# Shelve COM/grid settings are tracked (led_parameter.dat etc.)
+games/setting/ledplaydb.sqlite
 .DS_Store
 
 # Source archives (local backup bundles)

@@ -74,14 +74,17 @@ Timings are suggestions — tune to show pace.
 2. **Countdown** (3-2-1 sequence above)
 3. **Next level** play begins
 
-If more levels remain: clear → stinger → countdown → play.
-
-If the timer expires on the **final level** and the session ends → all LEDs
-**black / off** after the clear hold (**no** countdown).
+If more levels remain: clear → stinger → countdown → next level play.
 
 ---
 
-## Level fail
+## Timer expire (= session end)
+
+Same LED treatment as **level clear** (full floor **blue**).
+
+1. Hold clear pattern ~2–3 s with transition stinger (not BGM)
+2. All LEDs **black / off**
+3. **No countdown** — session is over
 
 **All 416 LEDs → solid red.**
 
@@ -90,16 +93,6 @@ Triggered when **all lives are lost**.
 1. Hold fail pattern ~2–3 s with transition stinger (not BGM)
 2. **Countdown** (3-2-1 sequence above)
 3. **Same level** restart play begins
-
----
-
-## Timer expire
-
-Same LED treatment as **level clear** (full floor **blue**).
-
-If more levels remain: clear hold → stinger → **countdown** → next level.
-
-If session ends: all LEDs **black / off** after clear hold (**no** countdown).
 
 ---
 

@@ -25,6 +25,7 @@ for path in (REPO_ROOT, GAMES_ROOT):
 os.environ["USE_SERIAL_HD"] = "0"
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 os.environ["SDL_AUDIODRIVER"] = "dummy"
+os.environ.setdefault("DISABLE_AUDIO", "1")
 
 
 @pytest.fixture(scope="session")

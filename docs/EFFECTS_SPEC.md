@@ -12,11 +12,11 @@ Matrix reference: [GRID_MATRICES.md](../../docs/game-effects/GRID_MATRICES.md)
 
 | Dimension | Value |
 |-----------|--------|
-| **Effects matrix** | **6 rows × 33 columns** |
-| **Usable area** | **Full 6×33** — all rows and cols for pattern design |
+| **Effects matrix** | **16 rows × 26 columns** |
+| **Usable area** | **Full 16×26** — all cells for pattern design |
 
-> Countdown, level-clear, and level-fail patterns are authored against this
-> 6×33 grid. Animation details TBD (same workflow as Hoops / Laser).
+> Countdown, level-clear, and level-fail patterns TBD (same workflow as Hoops /
+> Laser / Climb).
 
 ---
 

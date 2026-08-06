@@ -78,21 +78,47 @@ If more levels remain: clear → stinger → countdown → next level play.
 
 ---
 
-## Timer expire (= session end)
+## Level fail (all lives lost, >10 s session time left)
 
-Same LED treatment as **level clear** (full floor **blue**).
+**All 416 LEDs → solid red.**
+
+Triggered when **all lives are lost** while more than **10 s** remains on the session timer.
+
+1. Hold fail pattern ~2–3 s with transition stinger (not BGM)
+2. **Countdown** (3-2-1 sequence above)
+3. **Same level** restart play begins (HP refilled after countdown)
+
+---
+
+## Session end (no countdown)
+
+Same LED treatment as **level clear** (full floor **blue** via `level_clear.led`).
+
+Applies when **any** of:
+
+- Session **timer expires** mid-level
+- **All lives lost** with **≤10 s** session time remaining
+- **Last level cleared** (marathon sequence exhausted)
+
+Sequence:
 
 1. Hold clear pattern ~2–3 s with transition stinger (not BGM)
 2. All LEDs **black / off**
 3. **No countdown** — session is over
 
-**All 416 LEDs → solid red.**
+---
 
-Triggered when **all lives are lost**.
+## Effect files (locked)
 
-1. Hold fail pattern ~2–3 s with transition stinger (not BGM)
-2. **Countdown** (3-2-1 sequence above)
-3. **Same level** restart play begins
+Per [LOCKED_DECISIONS.md](../../docs/game-effects/LOCKED_DECISIONS.md), exactly three archives under `games/source/effects/`:
+
+| File | Purpose |
+|------|---------|
+| `countdown.led` | Green 3-2-1 centered digits (~0.8 s each); **no GO glyph on floor** |
+| `level_clear.led` | Solid blue full floor |
+| `level_fail.led` | Solid red full floor |
+
+Shared transition audio: `games/audio/transition_stinger.mp3` (clear **and** fail).
 
 ---
 

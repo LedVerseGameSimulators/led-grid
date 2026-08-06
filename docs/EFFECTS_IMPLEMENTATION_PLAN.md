@@ -35,7 +35,7 @@ effects per [EFFECTS_SPEC.md](./EFFECTS_SPEC.md),
 | 4 | **High (fixed)** | Plan suggested `level_fail.led` for life=0 with ≤10s session time left. GLOBAL_RULES session/game over uses **level_clear** hold (same as timer expire), not red fail. | `_finish_session()` always plays `level_clear.led`; red fail only on >10s restart path. |
 | 5 | **High (fixed)** | `stop_bgm()` must not call broad mixer stop that cuts stinger SFX channels (Hoops/Climb lesson). | §3.2: `mixer.music.stop()` only for BGM; stingers on dedicated `Sound` channels. |
 | 6 | **High (fixed)** | Hold timing: separate `await_hold(2.5)` **plus** `.led` `end_time_sec` risks double hold / drift. | `.led` timeline is the single hold authority; stinger fires once at phase entry (concurrent, non-blocking). |
-| 7 | **Medium (noted)** | `EFFECTS_SPEC.md` L81–96 — level-fail copy sits under **Timer expire**; stray red line at L89. | Task D4; implementation follows diagram + GLOBAL_RULES. |
+| 7 | **Medium (fixed)** | `EFFECTS_SPEC.md` L81–96 — level-fail copy sat under **Timer expire**; stray red line at L89. | Fixed in spec (2026-08-07 gap pass); see §Gap analysis. |
 | 8 | **Medium (locked)** | Pre-session `CountdownScreen` (3-2-1-**GO**, 1 s/step) must stay in sync with backend floor countdown. | Both UI and floor countdown run; backend `.led` authoritative for floor; UI mirrors `phase` + `countdown_digit`. |
 | 9 | **Low (verified)** | `_run_level_attempt()` + `begin_level_transition` / `finish_level_transition` (~L554–599, L1123–1191), `prepare_level_for_platform()` (~L239+ in `level_scaler.py`), 16×26 defaults, diagram green 3-2-1 (no floor GO) — all match repo. | No change. |
 
@@ -62,6 +62,64 @@ Additional Grid locks (from spec review):
 | G1 | **Effect visuals = standalone `.led` mini-levels**, loaded via `_load_level_file()` → `_prepare_level_attempt()` → `Play.running()` (not hard-coded RGB fills). |
 | G2 | **Native 16×26 effect authoring** — archives authored at full matrix size; `prepare_level_for_platform()` still called for one code path / future retargets. |
 | G3 | Floor countdown shows green **3-2-1 only** (no GO glyph on floor; UI may show GO when `phase=playing`). |
+
+---
+
+## Gap analysis (2026-08-07)
+
+**Verdict:** **Ready for implementation** — plan aligns with [LOCKED_DECISIONS.md](../../docs/game-effects/LOCKED_DECISIONS.md), [EFFECTS_SPEC.md](./EFFECTS_SPEC.md), and [GLOBAL_RULES.md](../../docs/game-effects/GLOBAL_RULES.md). No blocking doc conflicts remain. Runtime effects are **not yet wired** in `game_manager.py` (expected).
+
+### Severity summary
+
+| Severity | Open | Fixed this pass |
+|----------|------|-----------------|
+| **Blocker** | 0 | 0 (prior plan review resolved 3) |
+| **High** | 0 | 0 (prior plan review resolved 3) |
+| **Medium** | 2 | 1 |
+| **Low** | 3 | 1 |
+| **Total** | **5** | **2** |
+
+### Findings
+
+| # | Severity | Area | Finding | Resolution |
+|---|----------|------|---------|------------|
+| G1 | **Medium (fixed)** | `EFFECTS_SPEC.md` | Timer-expire section incorrectly included red fail bullets (L89–95); no `## Level fail` heading; session-end paths (life≤10s, last level) implicit only. | Spec restructured: separate **Level fail**, **Session end**, and **Effect files** sections with locked filenames. |
+| G2 | **Medium (open)** | Runtime | `game_manager.py` session loop (~L1840–1964): no effect phases, no `_finish_session()`, bare `_hw_blank_floor()` on exit (~L1963), HP refill before any fail hold (~L1920–1924). | Documented in §1.1; addressed by Phase B tasks (B4–B8). |
+| G3 | **Medium (open)** | Assets | `games/source/effects/` missing; no `countdown.led` / `level_clear.led` / `level_fail.led` archives; no `api/audio_manager.py`. | Phase A + B tasks. |
+| G4 | **Low (fixed)** | Filenames | Cross-game review still lists Grid as `clear.led` / `fail.led` aliases ([PLAN_REVIEW_CROSS_GAME.md](../../docs/game-effects/PLAN_REVIEW_CROSS_GAME.md) L157). Grid plan + spec now lock `level_clear.led` / `level_fail.led` only. | Grid docs consistent; cross-game doc update is a separate housekeeping item. |
+| G5 | **Low (open)** | Frontend | `CountdownScreen.jsx`: pre-start only, 1 s/step + UI **GO**; no `phase` / `countdown_digit` subscription. | Phase C (C1–C2); floor remains 3-2-1 only per G3. |
+| G6 | **Low (open)** | State API | `current_state` has no `phase`, `accepting_input`, or `countdown_digit`. | Phase B task B9. |
+| G7 | **Low (open)** | Audio | `pygame` mocked in `game_manager.py` (~L74–75); score SFX frontend-only. | Phase B tasks B2, B5. |
+
+### Locked-decision verification
+
+| Decision | Plan | Spec | Code (spot-check) |
+|----------|------|------|-------------------|
+| Effect files: `countdown.led`, `level_clear.led`, `level_fail.led` | ✓ §2.2 | ✓ Effect files table | ✗ not present |
+| Floor countdown 3-2-1, **no GO** on floor | ✓ G3 | ✓ Countdown note | ✗ no backend countdown |
+| UI + floor both run (~sync) | ✓ locked #4 | ✓ L62–63 | △ UI only pre-start |
+| Session end → `level_clear.led` → stinger → black, no countdown | ✓ §2.5 | ✓ Session end | ✗ immediate blank |
+| Fail restart (>10s) → `level_fail.led` → stinger → countdown | ✓ §2.5 | ✓ Level fail | ✗ immediate refill+replay |
+| Shared `transition_stinger.mp3` | ✓ §3.4 | ✓ Effect files | ✗ not present |
+| `phase` + `accepting_input` on `/game-state` | ✓ §2.7 | — | ✗ not exposed |
+
+### Code audit notes (`game_manager.py`)
+
+Confirmed against live repo (2026-08-07):
+
+- `_run_level_attempt()` + `begin_level_transition()` / `finish_level_transition()` exist (~L554–599) — reuse for effect runner.
+- Life=0 branch: >10s sets `_restart_level` (~L1658–1661); ≤10s sets `_session_over` (~L1663–1665) — matches locked session-end vs fail-restart split.
+- Timer expire sets `_session_over` (~L1666–1668) — `_finish_session()` must play blue clear, not fail.
+- Last level cleared: `_level_cleared` → inner `break` → `for` loop exhausts → session publish + `_hw_blank_floor()` (~L1935–1963) — plan's `_finish_session()` blank-only path applies after inner-loop clear hold.
+- No references to `clear.led` or `fail.led` anywhere in `led-grid/`.
+
+### Remaining human opens
+
+1. **Transition stinger asset** — stock OK for MVP; final clip TBD (`games/audio/transition_stinger.mp3`).
+2. **Countdown digit glyph design** — author 8×8 green glyphs centered on 16×26; reference MP4 in `~/Downloads/Floor is lava/`.
+3. **UI timing sync** — pre-start `CountdownScreen` (1 s/step + GO) vs backend floor (0.8 s/step, no GO): accept ~sync drift or retune UI to 0.8 s when Phase C lands?
+4. **Hold duration tuning** — 2.5 s default in plan; operator env/settings override (task C3).
+5. **Cross-game doc housekeeping** — update `PLAN_REVIEW_CROSS_GAME.md` Grid filename row from `clear.led` to `level_clear.led` (non-blocking).
 
 ---
 
@@ -423,7 +481,7 @@ Single `floor_light` group, `start_member` = all 416 cells, `start_time_sec=0`, 
 | D1 | Ensure `clear_all()` / `stop_game()` stop audio + blank floor |
 | D2 | Zombie thread audit: effect phases honor `game.running=False` |
 | D3 | Group mode marathon: same effect paths as 1P |
-| D4 | Fix `EFFECTS_SPEC.md` timer/fail section headings (doc-only) |
+| D4 | ~~Fix `EFFECTS_SPEC.md` timer/fail section headings~~ **Done** (2026-08-07 gap pass) |
 
 ---
 

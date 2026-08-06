@@ -1068,6 +1068,10 @@ class GameInstance:
             "levels_cleared": 0,
             "pressed_tiles": [],
             "accepting_input": False,
+            "phase": "idle",
+            "countdown_digit": None,
+            "effect_name": None,
+            "audio_active": False,
             "session_status": "running",
             "session_error": "",
             "started_at": "",
@@ -1189,6 +1193,9 @@ class GameInstance:
             if self.running and not self.current_state.get("game_over"):
                 self.accepting_input = True
                 self.current_state["accepting_input"] = True
+                self.current_state["phase"] = "playing"
+                self.current_state["countdown_digit"] = None
+                self.current_state["effect_name"] = None
 
     def mark_session_failed(self, reason, error):
         """Record a terminal session error and prevent success resolution."""
@@ -1257,6 +1264,9 @@ class GameInstance:
                         self.score2 = 0
                 self.life -= 1
                 self.last_life_loss_time = now
+                audio = getattr(self, "_audio", None)
+                if audio is not None:
+                    audio.play_score_negative()
             self._sync_live_feedback()
             return
         # DEDUCT tile: -1 SCORE only (NO life loss), then consume.
@@ -1296,6 +1306,9 @@ class GameInstance:
             self.scored_active.add((i, j))
             self.score += 1
             self._consume_cell(i, j, total_pass)
+            audio = getattr(self, "_audio", None)
+            if audio is not None:
+                audio.play_score_positive()
             self._sync_live_feedback()
             return
         # P2 goal: separate score + consume
@@ -1303,6 +1316,9 @@ class GameInstance:
             self.scored_active2.add((i, j))
             self.score2 += 1
             self._consume_cell(i, j, total_pass)
+            audio = getattr(self, "_audio", None)
+            if audio is not None:
+                audio.play_score_positive()
             self._sync_live_feedback()
             return
         # else: background decor — neutral, no effect.
@@ -1811,8 +1827,8 @@ class GameManager:
                             score=game.score,
                             score2=game.score2,
                             multiplayer=game.multiplayer,
-                            time_elapsed=session_elapsed,                       # SESSION elapsed
-                            time_left=max(0, game.game_time_sec - session_elapsed),  # SESSION countdown
+                            time_elapsed=session_elapsed,
+                            time_left=max(0, game.game_time_sec - session_elapsed),
                             life=game.life,
                             display_lives=math.ceil(game.life * 5 / game.max_life) if game.max_life else 0,
                             display_max=5,
@@ -1823,6 +1839,10 @@ class GameManager:
                             pressed_tiles=game._get_pressed_tiles(),
                             current_level=game.current_level_id,
                             levels_cleared=game.levels_cleared,
+                            phase="playing",
+                            accepting_input=game.accepting_input,
+                            countdown_digit=None,
+                            effect_name=None,
                         )
 
                         frame_counter["n"] += 1
@@ -1852,7 +1872,97 @@ class GameManager:
                     game.running = False
                     return
 
+                from .audio_manager import AudioManager
+                from .effects_runner import get_effects_dir, run_effect_led
+
+                audio = AudioManager()
+                audio.init()
+                effects_dir = get_effects_dir()
+                countdown_led = effects_dir / "countdown.led"
+                clear_led = effects_dir / "level_clear.led"
+                fail_led = effects_dir / "level_fail.led"
+                game.update_state(audio_active=audio.active)
+                game._audio = audio
+
+                hw_draw_clock_effect = {"t": 0.0}
+
+                def _publish_led_frame(*, led_display, phase=None, accepting_input=None,
+                                       countdown_digit=None, effect_name=None, **extra):
+                    cols = led_table.led_col
+                    rows = led_table.led_row
+                    kwargs = dict(
+                        led_display=led_display,
+                        grid_rows=rows,
+                        grid_cols=cols,
+                        pressed_tiles=game._get_pressed_tiles(),
+                        current_level=game.current_level_id,
+                        levels_cleared=game.levels_cleared,
+                    )
+                    if phase is not None:
+                        kwargs["phase"] = phase
+                    if accepting_input is not None:
+                        kwargs["accepting_input"] = accepting_input
+                    if countdown_digit is not None:
+                        kwargs["countdown_digit"] = countdown_digit
+                    if effect_name is not None:
+                        kwargs["effect_name"] = effect_name
+                    kwargs.update(extra)
+                    game.update_state(**kwargs)
+                    if USE_SERIAL_HD and _hw_led_control is not None:
+                        try:
+                            now = time.time()
+                            with _hw_serial_lock:
+                                if now - hw_draw_clock_effect["t"] >= _HW_DRAW_INTERVAL:
+                                    hw_draw_clock_effect["t"] = now
+                                    _ld2 = [
+                                        [led_display[r * cols + c] for c in range(cols)]
+                                        for r in range(rows)
+                                    ]
+                                    _hw_draw_floor(_hw_layout_type, _ld2)
+                        except Exception as _hw_err:
+                            logger.warning(f"HW effect draw failed: {_hw_err}")
+
+                def _finish_session(*, skip_clear_hold=False):
+                    game.begin_level_transition()
+                    if game.running and not skip_clear_hold:
+                        run_effect_led(
+                            clear_led,
+                            game=game,
+                            led_table=led_table,
+                            settings=_s,
+                            play=play,
+                            phase="level_clear",
+                            effect_name="level_clear",
+                            publish_frame=_publish_led_frame,
+                            stop_flag=lambda: not game.running,
+                            audio=audio,
+                        )
+                        audio.play_stinger()
+                    game.update_state(
+                        phase="session_end",
+                        accepting_input=False,
+                        countdown_digit=None,
+                        effect_name=None,
+                        led_display=[[0, 0, 0] for _ in range(led_table.led_row * led_table.led_col)],
+                    )
+                    _hw_blank_floor(game.led_table)
+
+                def _run_countdown():
+                    run_effect_led(
+                        countdown_led,
+                        game=game,
+                        led_table=led_table,
+                        settings=_s,
+                        play=play,
+                        phase="countdown",
+                        effect_name="countdown",
+                        publish_frame=_publish_led_frame,
+                        stop_flag=lambda: not game.running or game._session_over,
+                        audio=audio,
+                    )
+
                 play.callback = _frame_callback
+                sequence_exhausted_after_clear = False
                 for lvl_path in game.level_sequence:
                     if game._session_over or not game.running:
                         break
@@ -1868,10 +1978,17 @@ class GameManager:
                     #    >10s left (score persists, HP refills). Exits on level
                     #    clear, session timeout, or true game-over (life=0, <10s).
                     while True:
-                        # Reload fresh every attempt (including the first) — dg's
-                        # groups are mutated in-place as tiles are scored/consumed,
-                        # so reusing the same dg across a restart would replay with
-                        # already-scored tiles missing instead of a clean board.
+                        if game._session_over or not game.running:
+                            break
+
+                        _run_countdown()
+                        if game._session_over or not game.running:
+                            break
+
+                        if game._restart_level:
+                            game.refill_life_for_restart()
+                            game._restart_level = False
+
                         def _setup_attempt(dg, go):
                             game.current_level_id = lvl_id
                             game.reset_for_level()
@@ -1883,12 +2000,13 @@ class GameManager:
                                         f"t_left={game.game_time_sec - elapsed:.0f}s")
 
                         def _play_attempt(dg):
-                            # Blocks until callback returns False.
                             play.running_state = True
                             play.total_pass = 0
                             play.running(dg)
 
+                        audio.start_bgm()
                         try:
+                            play.callback = _frame_callback
                             _run_level_attempt(
                                 lvl_path,
                                 led_table=led_table,
@@ -1913,26 +2031,55 @@ class GameManager:
                                 "level_runtime_error", f"{lvl_id}: {run_err}"
                             )
                             break
+                        finally:
+                            audio.stop_bgm()
 
                         if game._session_over:
                             break
 
                         if game._restart_level:
-                            # life=0 with time remaining — refill HP, replay level
-                            game.refill_life_for_restart()
-                            logger.info(f"↻ Life restart: level={lvl_id}, score={game.score}")
+                            run_effect_led(
+                                fail_led,
+                                game=game,
+                                led_table=led_table,
+                                settings=_s,
+                                play=play,
+                                phase="level_fail",
+                                effect_name="level_fail",
+                                publish_frame=_publish_led_frame,
+                                stop_flag=lambda: not game.running,
+                                audio=audio,
+                            )
+                            audio.play_stinger()
+                            logger.info(f"↻ Life restart pending: level={lvl_id}, score={game.score}")
                             continue
 
                         if game._level_cleared:
                             game.levels_cleared += 1
+                            run_effect_led(
+                                clear_led,
+                                game=game,
+                                led_table=led_table,
+                                settings=_s,
+                                play=play,
+                                phase="level_clear",
+                                effect_name="level_clear",
+                                publish_frame=_publish_led_frame,
+                                stop_flag=lambda: not game.running,
+                                audio=audio,
+                            )
+                            audio.play_stinger()
                             logger.info(f"✓ Level {lvl_id} cleared "
                                         f"(total cleared={game.levels_cleared})")
+                            if lvl_path == game.level_sequence[-1]:
+                                sequence_exhausted_after_clear = True
                         break
 
                     if game._session_over:
                         break
 
-                # Session finished (timer/lives/sequence end).
+                audio.stop_bgm()
+                _finish_session(skip_clear_hold=sequence_exhausted_after_clear)
                 game._session_over = True
                 # Result honesty: 1 = cleared the whole level chain within time,
                 # 2 = ran out of session time, 0 = out of life. Only a genuine
@@ -1960,7 +2107,6 @@ class GameManager:
                                   levels_cleared=game.levels_cleared,
                                   final_score=final_score, final_score2=final_score2)
                 game.begin_level_transition()
-                _hw_blank_floor(game.led_table)
                 game.running = False
 
             except Exception as e:

@@ -160,9 +160,12 @@ export default function SimulatorScreen({ config, onGameEnd }) {
         const data = await response.json()
         if (data.success) {
           const st = data.state
-          // Sound cues on score gain / life loss
-          if (st.score > prevScoreRef.current) playScore()
-          if (prevLifeRef.current !== null && st.life < prevLifeRef.current) playHurt()
+          const backendAudio = st.audio_active === true
+          // Sound cues on score gain / life loss (mute when backend AudioManager active)
+          if (!backendAudio) {
+            if (st.score > prevScoreRef.current) playScore()
+            if (prevLifeRef.current !== null && st.life < prevLifeRef.current) playHurt()
+          }
           prevScoreRef.current = st.score
           prevLifeRef.current = st.life
 
@@ -210,6 +213,9 @@ export default function SimulatorScreen({ config, onGameEnd }) {
   const life = gameState?.display_lives ?? gameState?.life ?? gameState?.max_life ?? 0
   const maxLife = gameState?.display_max ?? gameState?.max_life ?? 5
   const isOver = gameState?.game_over
+  const phase = gameState?.phase || (isOver ? 'session_end' : 'playing')
+  const inputLocked = gameState?.accepting_input === false || phase !== 'playing'
+  const countdownDigit = gameState?.countdown_digit
   const isMulti = !!(gameState?.multiplayer || config.playerCount === 2)
   const p1Name = config.playerName || 'Player 1'
   const p2Name = config.playerName2 || 'Player 2'
@@ -257,12 +263,22 @@ export default function SimulatorScreen({ config, onGameEnd }) {
 
         {!showSim && (
           <div className="play-hud">
+            {(phase === 'countdown' || countdownDigit) && !isOver && (
+              <div className="phase-overlay countdown-overlay" aria-live="polite">
+                <div className="countdown-num">{countdownDigit ?? '…'}</div>
+              </div>
+            )}
+            {(phase === 'level_clear' || phase === 'level_fail') && !isOver && (
+              <div className={`phase-overlay ${phase}-overlay`} aria-live="polite">
+                {phase === 'level_clear' ? 'Level clear' : 'Try again'}
+              </div>
+            )}
             <div className="hud-board">
               <div className="hud-meta">
                 <span className="hud-level">Level {currentLevel}</span>
                 <span className="hud-diff">{config.difficulty?.toUpperCase()}</span>
-                <span className={`hud-status ${isOver ? 'ended' : 'playing'}`}>
-                  {isOver ? '● ENDED' : '● PLAYING'}
+                <span className={`hud-status ${isOver ? 'ended' : phase === 'playing' ? 'playing' : 'transition'}`}>
+                  {isOver ? '● ENDED' : phase === 'playing' ? '● PLAYING' : `● ${String(phase).toUpperCase()}`}
                 </span>
               </div>
 
@@ -338,6 +354,12 @@ export default function SimulatorScreen({ config, onGameEnd }) {
                 : ''}
             </span>
           )}
+        </div>
+      )}
+
+      {showSim && inputLocked && !isOver && (
+        <div className="sim-input-lock" aria-hidden="true">
+          Input paused ({phase})
         </div>
       )}
 

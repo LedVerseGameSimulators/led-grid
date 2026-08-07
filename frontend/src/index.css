@@ -599,6 +599,83 @@ button:disabled {
   pointer-events: none;
 }
 
+/* Phase overlays on simulator stage (backend-driven countdown sync) */
+.phase-countdown-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+  background: rgba(7, 7, 13, 0.62);
+}
+
+.phase-countdown-overlay--go {
+  z-index: 11;
+  background: rgba(7, 7, 13, 0.72);
+}
+
+.phase-countdown-overlay .countdown-num {
+  font-size: clamp(4rem, 18vw, 9rem);
+}
+
+.phase-countdown-overlay .countdown-num.go {
+  animation: countdown-go-pulse 0.6s ease-out;
+}
+
+@keyframes countdown-go-pulse {
+  from { transform: scale(0.85); opacity: 0.6; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+.countdown-level {
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.phase-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(7, 7, 13, 0.55);
+  font-size: clamp(2rem, 8vw, 4rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.level_clear-overlay {
+  color: var(--color-success);
+}
+
+.level_fail-overlay {
+  color: var(--color-error);
+}
+
+.sim-input-lock {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(7, 7, 13, 0.35);
+  color: var(--text-secondary);
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: all;
+}
+
 .game-info {
   display: flex;
   gap: 12px;

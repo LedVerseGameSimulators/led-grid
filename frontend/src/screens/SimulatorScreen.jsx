@@ -2,6 +2,23 @@ import { useEffect, useState, useRef } from 'react'
 
 import { API_URL, WS_BRIDGE_URL } from '../config'
 
+function countdownDisplay(state) {
+  if (state?.phase !== 'countdown') return null
+  const d = state.countdown_digit
+  if (d == null) return null
+  return String(d)
+}
+
+function isInputBlocked(state) {
+  if (!state) return true
+  if (state.accepting_input === false) return true
+  return state.phase && state.phase !== 'playing'
+}
+
+function showPhaseOverlay(state) {
+  return ['countdown', 'level_clear', 'level_fail'].includes(state?.phase)
+}
+
 function HeartRow({ life, maxLife }) {
   // Cap visual hearts (backend display_max is typically 5)
   const total = Math.max(1, Math.min(10, Math.round(maxLife) || 5))
@@ -19,13 +36,18 @@ export default function SimulatorScreen({ config, onGameEnd }) {
   const [gameState, setGameState] = useState(null)
   const [gameId, setGameId] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [phaseReady, setPhaseReady] = useState(false)
   const [error, setError] = useState(null)
   const [stopping, setStopping] = useState(false)
   const [showSim, setShowSim] = useState(false)
+  const [goFlash, setGoFlash] = useState(false)
   const iframeRef = useRef(null)
   const gameIdRef = useRef(null)
   const endedRef = useRef(false)
   const stateRef = useRef(null)
+  const phaseReadyRef = useRef(false)
+  const prevPhaseRef = useRef(null)
+  const goFlashTimerRef = useRef(null)
   // Audio: synth beeps via Web Audio (no asset files needed)
   const audioCtxRef = useRef(null)
   const prevScoreRef = useRef(0)
@@ -89,6 +111,22 @@ export default function SimulatorScreen({ config, onGameEnd }) {
     }
     startGame()
   }, [config])
+
+  // After gameId: wait for first phase poll or 2s fallback before showing simulator
+  useEffect(() => {
+    if (!gameId || phaseReady) return
+    const timer = setTimeout(() => {
+      if (!phaseReadyRef.current) {
+        phaseReadyRef.current = true
+        setPhaseReady(true)
+      }
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [gameId, phaseReady])
+
+  useEffect(() => () => {
+    if (goFlashTimerRef.current) clearTimeout(goFlashTimerRef.current)
+  }, [])
 
   // End the game: stop on backend, record, route to result panel
   const endGame = async (reason) => {
@@ -169,6 +207,17 @@ export default function SimulatorScreen({ config, onGameEnd }) {
           prevScoreRef.current = st.score
           prevLifeRef.current = st.life
 
+          if (!phaseReadyRef.current && st.phase) {
+            phaseReadyRef.current = true
+            setPhaseReady(true)
+          }
+          if (prevPhaseRef.current === 'countdown' && st.phase === 'playing') {
+            setGoFlash(true)
+            if (goFlashTimerRef.current) clearTimeout(goFlashTimerRef.current)
+            goFlashTimerRef.current = setTimeout(() => setGoFlash(false), 600)
+          }
+          prevPhaseRef.current = st.phase
+
           setGameState(st)
           stateRef.current = st
           if (st.game_over && !endedRef.current) {
@@ -183,7 +232,7 @@ export default function SimulatorScreen({ config, onGameEnd }) {
     return () => clearInterval(interval)
   }, [gameId])
 
-  if (loading) {
+  if (loading || (gameId && !phaseReady)) {
     return (
       <div className="screen">
         <div className="card">
@@ -214,8 +263,8 @@ export default function SimulatorScreen({ config, onGameEnd }) {
   const maxLife = gameState?.display_max ?? gameState?.max_life ?? 5
   const isOver = gameState?.game_over
   const phase = gameState?.phase || (isOver ? 'session_end' : 'playing')
-  const inputLocked = gameState?.accepting_input === false || phase !== 'playing'
-  const countdownDigit = gameState?.countdown_digit
+  const inputLocked = isInputBlocked(gameState)
+  const overlayLabel = countdownDisplay(gameState)
   const isMulti = !!(gameState?.multiplayer || config.playerCount === 2)
   const p1Name = config.playerName || 'Player 1'
   const p2Name = config.playerName2 || 'Player 2'
@@ -261,18 +310,27 @@ export default function SimulatorScreen({ config, onGameEnd }) {
           title="Game Simulator"
         />
 
+        {showPhaseOverlay(gameState) && phase === 'countdown' && !isOver && (
+          <div className="phase-countdown-overlay" aria-live="polite">
+            <div className="countdown-num">{overlayLabel ?? '…'}</div>
+            <div className="countdown-level">Level {currentLevel}</div>
+          </div>
+        )}
+
+        {goFlash && (
+          <div className="phase-countdown-overlay phase-countdown-overlay--go" aria-live="polite">
+            <div className="countdown-num go">GO!</div>
+          </div>
+        )}
+
+        {(phase === 'level_clear' || phase === 'level_fail') && !isOver && (
+          <div className={`phase-overlay ${phase}-overlay`} aria-live="polite">
+            {phase === 'level_clear' ? 'Level clear' : 'Try again'}
+          </div>
+        )}
+
         {!showSim && (
           <div className="play-hud">
-            {(phase === 'countdown' || countdownDigit) && !isOver && (
-              <div className="phase-overlay countdown-overlay" aria-live="polite">
-                <div className="countdown-num">{countdownDigit ?? '…'}</div>
-              </div>
-            )}
-            {(phase === 'level_clear' || phase === 'level_fail') && !isOver && (
-              <div className={`phase-overlay ${phase}-overlay`} aria-live="polite">
-                {phase === 'level_clear' ? 'Level clear' : 'Try again'}
-              </div>
-            )}
             <div className="hud-board">
               <div className="hud-meta">
                 <span className="hud-level">Level {currentLevel}</span>

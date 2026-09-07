@@ -70,11 +70,7 @@ mocks = {
     }),
     'net': MagicMock(),
     'socket': MagicMock(),
-    # Audio/Video
-    'pygame': MagicMock(),
-    'pygame.mixer': MagicMock(),
-    'audio_play': MagicMock(),
-    'audio_play.audio': MagicMock(),
+    # Audio/Video — do NOT mock pygame/audio_play (venue BGM/SFX need real mixer)
     'moviepy': MagicMock(),
     'moviepy.editor': MagicMock(),
     'cv2': MagicMock(),

@@ -56,16 +56,25 @@ intended truth, but today’s job is to catch fixes **and levels** that exist
 
 ---
 
-## Phase 1 — Find the OLD game-machine codebase
+## Phase 1 — Get the OLD game-machine codebase path from the human (**ask deliberately**)
 
-Search (record path as `OLD_ROOT` if found):
+**Do not guess. Do not skip this. Do not invent a path.**
 
-- `C:\activerse\led-grid`
-- `C:\led-grid`
-- `D:\led-grid*`
-- Desktop / Downloads `led-grid*` extracts / takeaway zips already extracted
+Before cloning or diffing, **ask the human (operator / tech on site) in chat**:
 
-If nothing found: skip Phase 3 code-diff; still do Phase 2–5 on a fresh clone.
+> What is the full path to the **existing / old** LED Grid (Floor Is Lava) install on this PC  
+> (the codebase that was running here before today’s git clone)?  
+> Examples: `C:\activerse\led-grid`, `D:\led-grid`, a Desktop extract folder.  
+> If there is **no** old install on this machine, reply `NONE`.
+
+Rules:
+
+1. Wait for their answer before Phase 2–3.  
+2. If they give a path: verify it exists (`dir <path>`). Record it as `OLD_ROOT`.  
+3. If they say `NONE` / no old copy: set `OLD_ROOT=` empty, skip code/LFS diffs vs OLD, still do fresh clone + setup.  
+4. If the path is wrong or empty: ask again — do not proceed with a guessed location.  
+5. Optional hint only after they ask for help: common folders to look in are  
+   `C:\activerse\`, `C:\`, `D:\`, Desktop, Downloads — but **they** confirm the path.
 
 **Do not delete `OLD_ROOT` until Phase 6 passes.**
 

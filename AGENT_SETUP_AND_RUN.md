@@ -3,15 +3,18 @@
 **Audience:** an AI coding agent on **this Windows game PC** — one-time setup
 today, then daily start/stop.
 
-**Repos:**
+## Mandatory first steps (do these before any install/clone/copy)
 
-| Location | Role |
-|----------|------|
-| GitHub `main` | Going-forward **source of truth** for code (already matches the developer PC) |
-| This game PC’s **old** install (if any) | May be outdated **or** may hold a fix that never got pushed — **audit once today** |
-| Venue configs on this PC | Shelve / COM / `.env` — keep these |
+1. **Read this entire file** (`AGENT_SETUP_AND_RUN.md`) end to end.  
+2. Also skim `WINDOWS_ONSITE_HANDOFF.md` and `OPERATOR_GUIDE.md` if present.  
+3. **Ask the human** for the OLD on-machine codebase path (Phase 1) — do not guess.  
+4. Clone/pull remote (Phase 2), run the audit (Phase 3), then **present the full
+   audit results in chat and wait for explicit human confirmation** before
+   copying, merging, committing, pushing, or installing/running.
 
-Also read: `WINDOWS_ONSITE_HANDOFF.md`, `OPERATOR_GUIDE.md`.
+**Hard rule:** after the audit, **STOP and ask**. Do not auto-keep venue
+configs, auto-copy levels, or auto-push. Wait for the human to confirm (or
+reject) each proposed action.
 
 ---
 
@@ -21,7 +24,7 @@ Also read: `WINDOWS_ONSITE_HANDOFF.md`, `OPERATOR_GUIDE.md`.
 |------|-------|
 | Repo | `led-grid` |
 | Clone URL | `https://github.com/LedVerseGameSimulators/led-grid.git` |
-| Suggested path | `C:\activerse\led-grid` |
+| Suggested NEW path | `C:\activerse\led-grid` (or `...\led-grid-git` if OLD already uses that folder) |
 | API / Bridge / UI | `8003` / `8769` / `5176` |
 | Start / Stop | `START_GAME.bat` / `STOP_GAME.bat` |
 | First-time setup | `SETUP_FIRST_TIME.bat` |
@@ -29,24 +32,34 @@ Also read: `WINDOWS_ONSITE_HANDOFF.md`, `OPERATOR_GUIDE.md`.
 
 ---
 
+## Truth table
+
+| Location | Role |
+|----------|------|
+| GitHub `main` | Intended going-forward **source of truth** for code + LFS levels |
+| OLD game-machine install | May be outdated **or** hold fixes/levels never pushed — **audit once today** |
+| Venue configs (`games\setting`, `.env`) | Candidate to keep from OLD — **only after human confirms** |
+
+---
+
 ## One-time sync model (today only)
 
 ```
-1. Pull GitHub main into a NEW (or updated) folder + git lfs pull
-2. Find OLD game-machine copy (if any)
-3. AUDIT code AND LFS levels: anything in OLD not on remote?
-      → report + add/push (incl. git lfs for .led/.ledb)
-4. Keep venue settings from OLD
-5. After today: always git pull + git lfs pull; never copy old tree over new
+0. READ this file fully
+1. ASK human for OLD_ROOT path (or NONE)
+2. Clone/pull GitHub main + git lfs pull → NEW
+3. AUDIT OLD vs NEW (code + LFS levels + venue config candidates)
+4. PRESENT report in chat → WAIT for human confirmation
+5. Only then: apply approved copies / LFS add+push / setting/.env choices
+6. SETUP_FIRST_TIME → START_GAME (after human OK)
+7. After today: git pull + git lfs pull only
 ```
-
-**Important:** Do **not** blindly delete OLD without the audit. Remote is the
-intended truth, but today’s job is to catch fixes **and levels** that exist
-**only on this game machine** and never reached GitHub / Git LFS.
 
 ---
 
 ## Phase 0 — Prerequisites (once)
+
+Check (install only if missing, tell human what you install):
 
 1. Git for Windows  
 2. Git LFS → `git lfs install`  
@@ -56,34 +69,32 @@ intended truth, but today’s job is to catch fixes **and levels** that exist
 
 ---
 
-## Phase 1 — Get the OLD game-machine codebase path from the human (**ask deliberately**)
+## Phase 1 — Ask for OLD codebase path (**deliberately**)
 
-**Do not guess. Do not skip this. Do not invent a path.**
+**Do not guess. Do not invent a path.**
 
-Before cloning or diffing, **ask the human (operator / tech on site) in chat**:
+Ask in chat:
 
 > What is the full path to the **existing / old** LED Grid (Floor Is Lava) install on this PC  
 > (the codebase that was running here before today’s git clone)?  
-> Examples: `C:\activerse\led-grid`, `D:\led-grid`, a Desktop extract folder.  
-> If there is **no** old install on this machine, reply `NONE`.
+> Examples: `C:\activerse\led-grid`, `D:\led-grid`, a Desktop extract.  
+> If there is **no** old install, reply `NONE`.
 
 Rules:
 
-1. Wait for their answer before Phase 2–3.  
-2. If they give a path: verify it exists (`dir <path>`). Record it as `OLD_ROOT`.  
-3. If they say `NONE` / no old copy: set `OLD_ROOT=` empty, skip code/LFS diffs vs OLD, still do fresh clone + setup.  
-4. If the path is wrong or empty: ask again — do not proceed with a guessed location.  
-5. Optional hint only after they ask for help: common folders to look in are  
-   `C:\activerse\`, `C:\`, `D:\`, Desktop, Downloads — but **they** confirm the path.
+1. Wait for the answer before Phase 2–3.  
+2. If path given: verify with `dir`. Record `OLD_ROOT`.  
+3. If `NONE`: skip OLD vs NEW diffs; still clone NEW and ask before setup/run.  
+4. Wrong/empty path → ask again.  
 
-**Do not delete `OLD_ROOT` until Phase 6 passes.**
+**Do not delete `OLD_ROOT` until Phase 6 passes and human agrees.**
 
 ---
 
 ## Phase 2 — Clone / update GitHub `main` (NEW tree)
 
-Prefer a **new** folder if OLD already occupies `C:\activerse\led-grid`, e.g.
-`C:\activerse\led-grid-git`, then swap after audit. Or rename OLD aside first.
+If OLD already lives at the suggested path, clone to a sibling folder
+(e.g. `C:\activerse\led-grid-git`) so you do not overwrite OLD before audit.
 
 ```bat
 git lfs install
@@ -98,47 +109,31 @@ git lfs pull
 
 ### LFS check (mandatory)
 
-A file under `games\source\*.led` / `*.ledb` must be many KB/MB — **not** ~130
-bytes of `version https://git-lfs.github.com/spec/v1`.  
-On fail: fix LFS, `git lfs pull`, stop.
+A `games\source\*.led` / `*.ledb` must be many KB/MB — **not** ~130 bytes starting
+with `version https://git-lfs.github.com/spec/v1`. Fix LFS before auditing.
 
 ---
 
-## Phase 3 — ONE-TIME audit: OLD game machine vs NEW (remote + LFS)
+## Phase 3 — ONE-TIME audit (read-only until confirmation)
 
-Audit **code** and **level assets** (Git LFS). Both must be reconciled today.
+Audit **code**, **LFS levels**, and **venue config candidates**.  
+**Do not copy, commit, or push in this phase.**
 
-### 3.1 What to compare
+### 3.1 Paths
 
-**Code** (not `node_modules`, `__pycache__`, `ledplaydb.sqlite`, logs):
+**Code:** `api\`, `frontend\src\`, `games\led\`, `ws_bridge.py`, bats, `hardware_config.py`  
 
-| Path | Why |
-|------|-----|
-| `api\` | Backend / marathon / effects |
-| `frontend\src\` | UI / countdown sync |
-| `games\led\` | Serial / hardware |
-| `ws_bridge.py` | Bridge |
-| `START_GAME.bat` / `STOP_GAME.bat` | Launchers |
-| `hardware_config.py` (if present) | COM / grid |
+**LFS / levels:** `games\source\**\*.led|*.ledb`, `games\source_group\**\`, `games\source\effects\`, `tests\fixtures\`  
 
-**Levels / LFS assets** (must match; these live in Git LFS on remote):
+**Venue candidates (report only):** `games\setting\*`, `frontend\.env`  
 
-| Path | Why |
-|------|-----|
-| `games\source\**\*.led` / `*.ledb` | Normal + marathon levels |
-| `games\source_group\**\*.led` / `*.ledb` | Group / corporate playlists |
-| `games\source\effects\*.led` | Countdown / clear / fail panels |
-| `tests\fixtures\**\*.led` (if present) | Test fixtures |
+Ignore: `node_modules`, `__pycache__`, `ledplaydb.sqlite`, logs.
 
-Also compare any other large media the OLD tree used for play (e.g. production
-`.mp3` under `games\audio\` that are real files, not silent placeholders) —
-if OLD has a real asset NEW lacks, treat it like an LFS/asset gap and push it.
-
-### 3.2 PowerShell audit — code + LFS levels (run on the game PC)
+### 3.2 PowerShell audit (read-only)
 
 ```powershell
-$NEW = "C:\activerse\led-grid"          # the git clone (after git lfs pull)
-$OLD = "C:\path\to\OLD_ROOT"             # set from Phase 1
+$NEW = "C:\activerse\led-grid"          # adjust to actual NEW path
+$OLD = "C:\path\to\OLD_ROOT"
 $Report = "C:\activerse\grid-reconcile-report.txt"
 
 $lines = @()
@@ -146,7 +141,6 @@ $lines += "NEW tip: $(git -C $NEW rev-parse --short HEAD)"
 $lines += "NEW status: $(git -C $NEW status -sb)"
 $lines += "NEW lfs count: $((git -C $NEW lfs ls-files | Measure-Object -Line).Lines)"
 
-# --- A) Code dirs ---
 $codeDirs = @("api","frontend\src","games\led")
 foreach ($d in $codeDirs) {
   $oldDir = Join-Path $OLD $d
@@ -165,8 +159,6 @@ foreach ($d in $codeDirs) {
     }
 }
 
-# --- B) Level / LFS assets (.led / .ledb) ---
-# Skip pointer stubs (~130 bytes). Compare real binaries by SHA256.
 $levelRoots = @("games\source","games\source_group","tests\fixtures")
 foreach ($d in $levelRoots) {
   $oldDir = Join-Path $OLD $d
@@ -179,7 +171,7 @@ foreach ($d in $levelRoots) {
       if (-not (Test-Path $counterpart)) {
         $lines += "ONLY_ON_MACHINE_LFS: $rel  size=$($_.Length)"
       } elseif ((Get-Item $counterpart).Length -lt 500) {
-        $lines += "NEW_IS_LFS_POINTER_OR_EMPTY: $rel  (run git lfs pull)"
+        $lines += "NEW_IS_LFS_POINTER_OR_EMPTY: $rel"
       } else {
         $h1 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
         $h2 = (Get-FileHash $counterpart -Algorithm SHA256).Hash
@@ -190,81 +182,79 @@ foreach ($d in $levelRoots) {
     }
 }
 
-# Levels on NEW that OLD never had are fine (remote ahead) — no action.
+# Venue candidates — existence only (do not copy yet)
+foreach ($p in @(
+  "games\setting\led_parameter.dat",
+  "games\setting\debug_parameter.dat",
+  "frontend\.env"
+)) {
+  $o = Join-Path $OLD $p
+  $n = Join-Path $NEW $p
+  $lines += "VENUE_CANDIDATE: $p  OLD_exists=$(Test-Path $o)  NEW_exists=$(Test-Path $n)"
+}
+
 $lines | Tee-Object -FilePath $Report
 Write-Host "Report written to $Report"
 ```
 
-### 3.3 How to interpret the report
+### 3.3 Present results and **WAIT for confirmation** (mandatory gate)
 
-| Finding | Action |
-|---------|--------|
-| Clean (no `ONLY_ON_MACHINE_*` / no important `DIFFERS_*`) | Remote already complete. Prefer NEW. |
-| `ONLY_ON_MACHINE_CODE` / `DIFFERS_CODE` | **Stop.** Port the fix into NEW, commit, **push to GitHub `main`**, then continue. |
-| `ONLY_ON_MACHINE_LFS` | **Stop.** Level exists on the game PC but not in git/LFS. **Add + push via LFS** (section 3.5). |
-| `DIFFERS_LFS` | Hashes differ. Decide which file is correct (usually the floor-proven OLD level). Replace in NEW, then **git add + push LFS** (3.5). |
-| `NEW_IS_LFS_POINTER_OR_EMPTY` | `git lfs pull` not done or LFS broken — fix before comparing. |
-| Diff only in `games\setting\` or `.env` | Expected. Keep venue values (3.6). |
-| `node_modules` / sqlite / logs | Ignore. |
+Paste into chat (or attach the report file) a clear summary:
 
-**Reconcile rule for today:** anything real on the game machine that remote lacks
-(code **or** levels) must land on GitHub — including **Git LFS upload** for
-`.led` / `.ledb` — before you throw OLD away.
+1. NEW git tip + LFS file count  
+2. List of `ONLY_ON_MACHINE_CODE` / `DIFFERS_CODE`  
+3. List of `ONLY_ON_MACHINE_LFS` / `DIFFERS_LFS`  
+4. Venue candidates (`VENUE_CANDIDATE` lines)  
+5. **Proposed actions** (numbered), for example:  
+   - A. Push these N levels to Git LFS  
+   - B. Port these code files to NEW and push  
+   - C. Copy OLD `games\setting\*` → NEW  
+   - D. Copy / create `frontend\.env` with RFID IP = …  
+   - E. Ignore these diffs (obsolete)  
+6. Ask explicitly:
 
-### 3.5 Add missing / updated levels to Git LFS and push
+> Please confirm which proposed actions to apply (e.g. “do A, C, D; skip B”).  
+> I will not copy, commit, push, or start the game until you confirm.
 
-When the report lists `ONLY_ON_MACHINE_LFS` or you chose OLD for a `DIFFERS_LFS`:
+**Do not proceed** to Phase 3.5 / 4 / 5 until the human replies with confirmation.
+
+| Finding | After confirmation only |
+|---------|-------------------------|
+| Clean | Prefer NEW; still confirm venue `.env` / settings |
+| `ONLY_ON_MACHINE_CODE` / `DIFFERS_CODE` | Port + push if human approves |
+| `ONLY_ON_MACHINE_LFS` / `DIFFERS_LFS` | Add via LFS + push if human approves |
+| Venue candidates | Copy OLD→NEW **only if human says yes** |
+| `NEW_IS_LFS_POINTER_OR_EMPTY` | Fix `git lfs pull` first, re-audit |
+
+### 3.5 Apply approved LFS / code changes (only after confirmation)
 
 ```bat
 cd C:\activerse\led-grid
-git lfs install
-git checkout main
-git pull
-
-REM Copy the missing/updated file(s) from OLD into the same relative path under NEW
-REM Example:
-REM   copy /Y "OLD\games\source_group\-\001.led" "games\source_group\-\001.led"
-
 git lfs track "*.led" "*.ledb"
-git add .gitattributes
-git add games\source\...path...
-git add games\source_group\...path...
+REM copy only the human-approved files from OLD → NEW
+git add <approved-paths>
 git status
 git lfs status
-
-git commit -m "content: add venue levels missing from LFS (one-time reconcile)"
+git commit -m "content: one-time reconcile from venue machine (approved)"
 git push origin main
 ```
 
-Confirm after push:
+Levels must go through LFS (not raw blobs). Re-verify sizes after push.
 
-1. `git lfs ls-files` lists the new paths  
-2. On a fresh check, file size is many KB/MB (not a pointer)  
-3. GitHub shows the commit on `main`  
+### 3.6 Venue configs (only if human confirmed)
 
-If push fails on LFS auth, fix GitHub credentials / `git lfs` login and retry —
-**do not** commit level binaries as normal git blobs; they must go through LFS
-(`.gitattributes` already tracks `*.led` / `*.ledb`).
+If approved, copy the agreed files:
 
-Same pattern for real production audio if OLD has full `.mp3` and NEW only has
-tiny placeholders: copy into `games\audio\`, `git add`, commit, push (audio may
-be normal git or LFS depending on repo — prefer matching existing tracking).
+- `games\setting\led_parameter.dat` (+ `.bak` / `.dir`) and related shelve  
+- `frontend\.env` (or create from `.env.example` with the IP the human specifies)
 
-### 3.6 Venue configs (always keep from OLD when present)
-
-Copy into NEW if missing or if OLD is the known-good floor config:
-
-- `games\setting\led_parameter.dat` (+ `.bak` / `.dir`)
-- `games\setting\debug_parameter.*`
-- other `games\setting\*` shelve files
-- `frontend\.env` (RFID IP) — or create from `frontend\.env.example`
-
-Do **not** copy OLD `api\` / `frontend\src\` wholesale onto NEW.  
-Do **not** skip LFS for levels — copy into NEW then `git add` so LFS clean filter runs.
+Never bulk-copy OLD `api\` / `frontend\src\` without per-file approval.
 
 ---
 
-## Phase 4 — Install dependencies
+## Phase 4 — Install dependencies (after audit confirmation)
+
+Ask: “OK to run SETUP_FIRST_TIME.bat now?” then:
 
 ```bat
 cd C:\activerse\led-grid
@@ -273,35 +263,23 @@ SETUP_FIRST_TIME.bat
 
 ---
 
-## Phase 5 — Run
+## Phase 5 — Run (after human OK)
 
-```bat
-START_GAME.bat
-```
-
-UI: `http://localhost:5176` — leave minimized windows open.  
-Stop: `STOP_GAME.bat`.
+Ask: “OK to start the game?” then `START_GAME.bat`.  
+UI: `http://localhost:5176`. Stop: `STOP_GAME.bat`.
 
 ---
 
-## Phase 6 — Done (perfect sync)
+## Phase 6 — Done
 
-- [ ] NEW is `main` + `git lfs pull` OK (levels are real binaries)  
-- [ ] One-time OLD vs NEW report reviewed — no unresolved `ONLY_ON_MACHINE_CODE` or `ONLY_ON_MACHINE_LFS`  
-- [ ] Any machine-only levels were `git add`’d through LFS and **pushed**  
-- [ ] Venue settings + RFID `.env` in place  
-- [ ] START / STOP work on hardware  
+- [ ] This file was read first  
+- [ ] OLD path asked and recorded (or NONE)  
+- [ ] Audit report shown; human confirmed actions  
+- [ ] Approved LFS/code pushes done (if any)  
+- [ ] Approved venue configs applied (if any)  
+- [ ] START / STOP verified  
 
-**After today:** updates are only:
-
-```bat
-git pull origin main
-git lfs pull
-START_GAME.bat
-```
-
-Never copy old game-machine code or levels over the git tree again without going
-through git + LFS.
+Later: `git pull` + `git lfs pull` + `START_GAME.bat` only.
 
 ---
 
@@ -310,8 +288,7 @@ through git + LFS.
 | Symptom | Action |
 |---------|--------|
 | Levels ~130 bytes | Git LFS / `git lfs pull` |
-| `ONLY_ON_MACHINE_LFS` in report | Copy into NEW → `git add` → commit → push (LFS) |
-| Report shows machine-only code fix | Port to NEW → commit → push before deleting OLD |
-| Floor dark | COM + `led_parameter.dat` + API window |
-| RFID fails | `frontend\.env` RFID IP |
+| Unsure what to copy | Show report again; wait for confirmation |
+| Floor dark | COM + settings (if human approved copy) + API window |
+| RFID fails | Confirm `.env` IP with human |
 | Port busy | `STOP_GAME.bat`, retry |

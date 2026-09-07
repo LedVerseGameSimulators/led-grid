@@ -227,6 +227,8 @@ _GRID_P2_COLOR = (254, 128, 0)
 _GRID_SCORE_COLORS_1P = {_GRID_P1_COLOR}
 _GRID_SCORE_COLORS_2P = {_GRID_P1_COLOR, _GRID_P2_COLOR}
 _GRID_HAZARD_COLORS = {(254, 0, 0), (240, 0, 0)}
+# Gameplay hit-flash white must stay below serial sync byte 255.
+_FLASH_ON_COLOR = (254, 254, 254)
 
 # Settings from Climb's own led_parameter shelve.
 _LED_PARAM  = str(GAMES_ROOT / "setting" / "led_parameter")
@@ -1798,7 +1800,7 @@ class GameManager:
                                 continue
                             fi, fj = cell
                             on = int(el / 0.1) % 2 == 0
-                            led_display[fi * cols + fj] = [255, 255, 255] if on else [0, 0, 0]
+                            led_display[fi * cols + fj] = list(_FLASH_ON_COLOR) if on else [0, 0, 0]
 
                         # Hardware LED: draw after building display buffer (valid RGB).
                         if USE_SERIAL_HD and _hw_led_control is not None:

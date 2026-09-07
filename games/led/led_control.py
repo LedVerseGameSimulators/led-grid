@@ -25,6 +25,16 @@ com_is_block = False
 g_has_open = False
 rect_position_arr = None
 
+
+def _clamp_wire_channel(value):
+    channel = int(value)
+    if channel < 0:
+        return 0
+    if channel > 254:
+        return 254
+    return channel
+
+
 def init_layout(layout_type, layout_row, layout_col, position_no_use):
     global rect_position_arr
     rect_position_arr = [
@@ -125,9 +135,9 @@ def draw_screen_by_com(layout_type, logic_2array):
                         tuple_color = logic_2array[ri][ci]
                     else:
                         tuple_color = (0, 0, 0)
-                    array_com_protocal.append(tuple_color[0])
-                    array_com_protocal.append(tuple_color[1])
-                    array_com_protocal.append(tuple_color[2])
+                    array_com_protocal.append(_clamp_wire_channel(tuple_color[0]))
+                    array_com_protocal.append(_clamp_wire_channel(tuple_color[1]))
+                    array_com_protocal.append(_clamp_wire_channel(tuple_color[2]))
 
                 com[0].Send_data(array_com_protocal)
                 i += 1
@@ -145,9 +155,9 @@ def display_led_screen():
             array = m_led_color_one_array[int(values[0]) - 1:int(values[1])]
             array_com_protocal = [255, 255]
             for tuple in list(reversed(array)):
-                array_com_protocal.append(tuple[0])
-                array_com_protocal.append(tuple[1])
-                array_com_protocal.append(tuple[2])
+                array_com_protocal.append(_clamp_wire_channel(tuple[0]))
+                array_com_protocal.append(_clamp_wire_channel(tuple[1]))
+                array_com_protocal.append(_clamp_wire_channel(tuple[2]))
 
             com[0].Send_data(array_com_protocal)
 

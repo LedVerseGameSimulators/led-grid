@@ -12,6 +12,16 @@ from model.setting import Setting
 from util import util_program
 import gui.language as language
 
+
+def _clamp_wire_channel(value):
+    channel = int(value)
+    if channel < 0:
+        return 0
+    if channel > 254:
+        return 254
+    return channel
+
+
 class LedControl:
 
     def get_com_num(self, com_info_str):
@@ -120,9 +130,9 @@ class LedControl:
                     array = one_array[int(values[0]) - 1:int(values[1])]
                     array_com_protocal = [255, 255]
                     for tuple in list(reversed(array)):
-                        array_com_protocal.append(tuple[0])
-                        array_com_protocal.append(tuple[1])
-                        array_com_protocal.append(tuple[2])
+                        array_com_protocal.append(_clamp_wire_channel(tuple[0]))
+                        array_com_protocal.append(_clamp_wire_channel(tuple[1]))
+                        array_com_protocal.append(_clamp_wire_channel(tuple[2]))
 
                     com[0].Send_data(array_com_protocal)
 
@@ -139,9 +149,9 @@ class LedControl:
                 array_com_protocal = [
                  255, 255]
                 for tuple in list(reversed(data_array)):
-                    array_com_protocal.append(tuple[0])
-                    array_com_protocal.append(tuple[1])
-                    array_com_protocal.append(tuple[2])
+                    array_com_protocal.append(_clamp_wire_channel(tuple[0]))
+                    array_com_protocal.append(_clamp_wire_channel(tuple[1]))
+                    array_com_protocal.append(_clamp_wire_channel(tuple[2]))
 
                 com[0].Send_data(array_com_protocal)
                 i += 1
@@ -159,9 +169,9 @@ class LedControl:
                 array = m_led_color_one_array[int(values[0]) - 1:int(values[1])]
                 array_com_protocal = [255, 255]
                 for tuple in list(reversed(array)):
-                    array_com_protocal.append(tuple[0])
-                    array_com_protocal.append(tuple[1])
-                    array_com_protocal.append(tuple[2])
+                    array_com_protocal.append(_clamp_wire_channel(tuple[0]))
+                    array_com_protocal.append(_clamp_wire_channel(tuple[1]))
+                    array_com_protocal.append(_clamp_wire_channel(tuple[2]))
 
                 com[0].Send_data(array_com_protocal)
 

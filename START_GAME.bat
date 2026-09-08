@@ -39,28 +39,30 @@ if not exist "games\setting\led_parameter.dat" (
 
 echo  Checking Python packages...
 python -c "import fastapi, uvicorn, httpx, serial" >nul 2>&1
+if errorlevel 1 goto :pip_install
+goto :after_pip
+:pip_install
+echo  Installing Python packages - first time...
+python -m pip install -r "api\requirements.txt"
+if errorlevel 1 goto :fail
+:after_pip
+
+if not exist "frontend\node_modules\" goto :npm_install
+goto :after_npm
+:npm_install
+echo  First run: installing UI packages...
+pushd frontend
+call npm install
 if errorlevel 1 (
-  echo  Installing Python packages (first time)...
-  python -m pip install -r "api\requirements.txt"
-  if errorlevel 1 goto :fail
-)
-
-if not exist "frontend\node_modules\" (
-  echo  First run: installing UI packages...
-  pushd frontend
-  call npm install
-  if errorlevel 1 (
-    popd
-    goto :fail
-  )
   popd
+  goto :fail
 )
+popd
+:after_npm
 
-if not exist "frontend\.env" (
-  if exist "frontend\.env.example" (
-    copy /Y "frontend\.env.example" "frontend\.env" >nul
-    echo  Created frontend\.env — confirm RFID IP if needed.
-  )
+if not exist "frontend\.env" if exist "frontend\.env.example" (
+  copy /Y "frontend\.env.example" "frontend\.env" >nul
+  echo  Created frontend\.env - confirm RFID IP if needed.
 )
 
 echo  Stopping any previous LED Grid windows...

@@ -107,6 +107,10 @@ _hw_layout_type = 0
 # Full-floor serial write (~1.2KB × 3 ports) takes ~80–150ms at 115200 baud.
 # Drawing faster than this blocks the game loop and delays input + simulator.
 _HW_DRAW_INTERVAL = float(os.environ.get("HW_DRAW_INTERVAL", "0.045"))  # ~22fps: matches serial hw ceiling
+# When scoreables remain but none are reachable (masked by red/green) and no
+# future wave will expose them, wait this long for moving masks to clear before
+# treating the level as done. Matches Climb's B31 / masked-goal rescue.
+_MASKED_GOAL_GRACE = float(os.environ.get("MASKED_GOAL_GRACE", "1.0"))
 _hw_serial_lock = threading.Lock()  # all COM I/O on game thread only
 
 
@@ -1046,6 +1050,7 @@ class GameInstance:
         self._end_reason = None        # why the session loop exited (see Task 4.1)
         self._level_cleared = False    # True -> advance to next level
         self._restart_level = False    # True -> replay same level (life=0, time left)
+        self._no_reachable_goal_since = None  # monotonic clock for masked-goal grace
 
         self.current_state = {
             "score": 0,
@@ -1121,6 +1126,7 @@ class GameInstance:
             self.last_life_loss_time = 0.0
             self._level_cleared = False
             self._restart_level = False
+            self._no_reachable_goal_since = None
 
     def begin_level_transition(self):
         """Fail closed while level geometry and classification are changing."""
@@ -1739,9 +1745,35 @@ class GameManager:
                         # by advancing total_pass to the next scoreable wave's start.
                         # Mirrors real game's running_by_blue auto-jump.
                         if progress_action == "jump":
+                            game._no_reachable_goal_since = None
                             logger.debug(f"Auto-jump: {total_pass:.1f}s -> {next_start:.1f}s")
                             play_self.total_pass = next_start
                             game.last_life_loss_time = 0.0  # reset hazard gate
+                        elif (
+                            total_pass > 1.5
+                            and remaining_scoreable > 0
+                            and not goal_cells
+                            and not goal2_cells
+                            and next_start is None
+                        ):
+                            # No visible goals and no future wave. Give moving
+                            # masks a short chance to clear, then finish instead
+                            # of waiting until board_time (Climb parity).
+                            now_mono = time.monotonic()
+                            if game._no_reachable_goal_since is None:
+                                game._no_reachable_goal_since = now_mono
+                            elif (
+                                now_mono - game._no_reachable_goal_since
+                                >= _MASKED_GOAL_GRACE
+                            ):
+                                logger.warning(
+                                    "Level cleared with {} unreachable masked goal(s)",
+                                    remaining_scoreable,
+                                )
+                                game._level_cleared = True
+                                return False
+                        else:
+                            game._no_reachable_goal_since = None
 
                         # DEBUG: log tile classification every 60 frames
                         if frame_counter["n"] % 60 == 0:

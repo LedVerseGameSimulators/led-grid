@@ -89,9 +89,15 @@ input {
 }
 
 .video-bg-el {
+  /* Crop baked-in title/subtitle out of frame (top-left in every preview mp4).
+     Scale + origin toward bottom-right so watermark never reaches the viewport. */
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transform: scale(1.32);
+  transform-origin: 78% 82%;
 }
 
 .video-bg-dim {
@@ -100,27 +106,26 @@ input {
   background: rgba(0, 0, 0, 0.55);
 }
 
-/* Opaque plate covering baked-in mp4 watermark; vibrant game title on top */
+/* Vibrant game title chrome (masking is handled by video crop above) */
 .video-bg-brand {
-  position: absolute;
-  z-index: 2;
-  top: max(16px, 3.5vh);
-  left: max(16px, 2.5vw);
-  min-width: min(560px, 48vw);
-  min-height: 6.75rem;
-  padding: 22px 30px 20px;
+  position: fixed;
+  z-index: 20;
+  top: 16px;
+  left: 20px;
+  padding: 14px 22px 12px;
   display: flex;
   align-items: center;
   background: #000000;
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, #222);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, #222);
   border-left: 5px solid var(--accent);
   border-radius: var(--radius-sm, 8px);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.9);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
 }
 
 .video-bg-brand-title {
   margin: 0;
-  font-size: clamp(1.7rem, 3.6vw, 2.75rem);
+  font-size: clamp(1.35rem, 2.6vw, 2rem);
   font-weight: 900;
   letter-spacing: 0.1em;
   line-height: 1.05;
@@ -170,9 +175,9 @@ input {
 
 .btn-back {
   position: absolute;
-  top: 20px;
+  top: 84px;
   left: 20px;
-  z-index: 2;
+  z-index: 21;
   background: rgba(0, 0, 0, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: var(--text);

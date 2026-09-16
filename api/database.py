@@ -66,6 +66,7 @@ class Database:
                                  ("card_id2", "TEXT"), ("multiplayer", "INTEGER"),
                                  ("final_score", "REAL"), ("final_score2", "REAL"),
                                  ("levels_cleared", "INTEGER"), ("end_level", "TEXT"),
+                                 ("level_file", "TEXT"), ("end_level_file", "TEXT"),
                                  ("difficulty", "TEXT"), ("started_at", "TEXT")):
                     try:
                         con.execute(f"ALTER TABLE hex_scores ADD COLUMN {col} {typ}")
@@ -112,16 +113,18 @@ class Database:
                 con = self._scores_conn()
                 con.execute(
                     "INSERT INTO hex_scores (card_id, card_id2, multiplayer, level, "
-                    "end_level, score, score2, final_score, final_score2, life, "
-                    "lives_start, result, time_used, levels_cleared, difficulty, "
-                    "started_at, ts, game) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "end_level, level_file, end_level_file, score, score2, "
+                    "final_score, final_score2, life, lives_start, result, time_used, "
+                    "levels_cleared, difficulty, started_at, ts, game) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         str(game_info.get("card_id", "")),
                         str(game_info.get("card_id2", "") or ""),
                         1 if game_info.get("multiplayer") else 0,
                         str(game_info.get("level", "")),
                         str(game_info.get("end_level", "") or ""),
+                        str(game_info.get("level_file", "") or ""),
+                        str(game_info.get("end_level_file", "") or ""),
                         int(game_info.get("score", 0)),
                         int(game_info.get("score2", 0)),
                         float(game_info.get("final_score", 0.0)),
@@ -205,6 +208,7 @@ class Database:
                 con = self._scores_conn()
                 rows = con.execute(
                     "SELECT card_id, card_id2, multiplayer, level, end_level, "
+                    "level_file, end_level_file, "
                     "score, score2, final_score, final_score2, life, lives_start, "
                     "result, time_used, levels_cleared, difficulty, started_at, ts, game "
                     "FROM hex_scores WHERE ts > ? AND game = ? ORDER BY ts ASC",
@@ -213,6 +217,7 @@ class Database:
                 con.close()
             return [dict(zip(
                 ["card_id", "card_id2", "multiplayer", "level", "end_level",
+                 "level_file", "end_level_file",
                  "score", "score2", "final_score", "final_score2", "life",
                  "lives_start", "result", "time_used", "levels_cleared",
                  "difficulty", "started_at", "ts", "game"], r

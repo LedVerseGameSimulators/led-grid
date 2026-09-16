@@ -238,7 +238,9 @@ async def logout(request: LogoutRequest) -> LogoutResponse:
         result = game_manager.stop_game(request.game_id)
 
         if result["success"]:
-            # Record score to database
+            # TODO: logout also calls record_game_score (sparse payload) — double-writes
+            # when FE already POSTed /save-score. Prefer FE guest skip + RFID-card-only
+            # save as the primary fix for guests; clean up logout score write later.
             score_data = {
                 "card_id": request.card_id,
                 "game_id": request.game_id,
@@ -418,8 +420,10 @@ async def save_score(payload: dict):
             "card_id": payload.get("card_id", ""),
             "card_id2": payload.get("card_id2", ""),
             "multiplayer": payload.get("multiplayer", False),
-            "level": payload.get("level", ""),          # starting level picked
-            "end_level": payload.get("end_level", ""),  # level session ended on
+            "level": payload.get("level", ""),          # FE display name (1, 2, …)
+            "end_level": payload.get("end_level", ""),  # FE display end name
+            "level_file": payload.get("level_file", ""),       # real stem (debug)
+            "end_level_file": payload.get("end_level_file", ""),
             "score": payload.get("score", 0),           # raw P1
             "score2": payload.get("score2", 0),         # raw P2
             "final_score": payload.get("final_score", 0.0),    # normalized P1

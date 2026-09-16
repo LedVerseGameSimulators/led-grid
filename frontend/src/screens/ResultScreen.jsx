@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { API_URL } from '../config'
+import { formatLevelLabel } from '../levelPlaylists'
 
 export default function ResultScreen({ result, config, onPlayAgain, onLogout }) {
   const score = result?.score ?? 0
@@ -14,13 +15,20 @@ export default function ResultScreen({ result, config, onPlayAgain, onLogout }) 
     stopped: 'Game Stopped'
   }
   const reason = REASONS[result?.reason] || 'Game Over'
+  const levelLabel = result?.end_level ?? result?.level
+    ?? formatLevelLabel(config.playMode, result?.end_level ?? config.level)
+  const leaderboardKey = result?.level
+    ?? formatLevelLabel(config.playMode, config.level)
 
   const [board, setBoard] = useState([])
   useEffect(() => {
     // Saved score is written before this screen; fetch the level leaderboard.
+    // Key = FE display name (same string sent to /save-score → RFID).
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_URL}/leaderboard/${config.level}?limit=5`)
+        const res = await fetch(
+          `${API_URL}/leaderboard/${encodeURIComponent(leaderboardKey)}?limit=5`
+        )
         const data = await res.json()
         if (data.success) setBoard(data.entries || [])
       } catch (err) {
@@ -28,7 +36,7 @@ export default function ResultScreen({ result, config, onPlayAgain, onLogout }) 
       }
     }, 300)
     return () => clearTimeout(t)
-  }, [config.level])
+  }, [leaderboardKey])
 
   return (
     <div className="screen">
@@ -56,7 +64,7 @@ export default function ResultScreen({ result, config, onPlayAgain, onLogout }) 
             <div className="result-stat-label">Time Played</div>
           </div>
           <div className="result-stat">
-            <div className="result-stat-value">{config.level}</div>
+            <div className="result-stat-value">{levelLabel}</div>
             <div className="result-stat-label">Level</div>
           </div>
           <div className="result-stat">
@@ -78,7 +86,7 @@ export default function ResultScreen({ result, config, onPlayAgain, onLogout }) 
         {board.length > 0 && (
           <div style={{ marginTop: '20px' }}>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-              Top Scores — Level {config.level}
+              Top Scores — Level {leaderboardKey}
             </div>
             <div style={{
               background: 'var(--bg-input)',

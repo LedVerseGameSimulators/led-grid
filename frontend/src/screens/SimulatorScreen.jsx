@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 
 import { API_URL, WS_BRIDGE_URL } from '../config'
+import { formatLevelLabel, TOURNAMENT_LEVEL_ORDER } from '../levelPlaylists'
 
 function countdownDisplay(state) {
   if (state?.phase !== 'countdown') return null
@@ -143,35 +144,53 @@ export default function SimulatorScreen({ config, onGameEnd }) {
     // out_of_life beats the passed reason (game ended because HP hit 0)
     const finalReason = st.game_over_reason === 'out_of_life'
       ? 'out_of_life' : (reason || 'stopped')
+
+    // Player-facing level names (1, 2, 3…) for scores / RFID / leaderboards.
+    // Real file stems are only used to load levels via start-game (config.level).
+    const startStem =
+      config.playMode === 'group' && (!config.level || config.level === 'auto')
+        ? TOURNAMENT_LEVEL_ORDER[0]
+        : (config.level || '')
+    const endStem = st.current_level ?? startStem
+    const levelLabel = formatLevelLabel(config.playMode, startStem)
+    const endLevelLabel = formatLevelLabel(config.playMode, endStem)
+    // Guests (no RFID card): kiosk results only — do not write Grid DB / RFID.
+    const hasRfidCard = Boolean(config.cardId && String(config.cardId).trim())
+
     try {
-      // Persist score to leaderboard
-      await fetch(`${API_URL}/save-score`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          card_id: config.cardId,
-          card_id2: config.cardId2 || null,
-          level: config.level,                       // starting level picked
-          end_level: st.current_level ?? config.level, // level ended on
-          score: finalScore,                         // raw P1 (on-screen)
-          score2: finalScore2,                       // raw P2 (on-screen)
-          final_score: st.final_score ?? finalScore,   // normalized P1
-          final_score2: st.final_score2 ?? finalScore2,// normalized P2
-          multiplayer: finalMultiplayer,
-          life: finalLife,
-          lives_start: st.max_life ?? 0,
-          result: st.result ?? null,
-          time_used: finalTime,                      // full session duration
-          levels_cleared: st.levels_cleared ?? 0,
-          difficulty: config.difficulty ?? '',
-          started_at: st.started_at ?? ''
+      if (hasRfidCard) {
+        await fetch(`${API_URL}/save-score`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            card_id: config.cardId,
+            card_id2: config.cardId2 || null,
+            level: levelLabel,              // FE display → Grid DB → RFID LB
+            end_level: endLevelLabel,
+            level_file: startStem,          // real stem (ops/debug only)
+            end_level_file: endStem,
+            score: finalScore,
+            score2: finalScore2,
+            final_score: st.final_score ?? finalScore,
+            final_score2: st.final_score2 ?? finalScore2,
+            multiplayer: finalMultiplayer,
+            life: finalLife,
+            lives_start: st.max_life ?? 0,
+            result: st.result ?? null,
+            time_used: finalTime,
+            levels_cleared: st.levels_cleared ?? 0,
+            difficulty: config.difficulty ?? '',
+            started_at: st.started_at ?? '',
+            player_name: config.playerName || '',
+            player_name2: config.playerName2 || '',
+          })
         })
-      })
-      await fetch(`${API_URL}/logout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ card_id: config.cardId, game_id: id })
-      })
+        await fetch(`${API_URL}/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ card_id: config.cardId, game_id: id })
+        })
+      }
     } catch (err) {
       console.error('Stop/save error:', err)
     }
@@ -181,7 +200,10 @@ export default function SimulatorScreen({ config, onGameEnd }) {
       multiplayer: finalMultiplayer,
       time_elapsed: finalTime,
       life: finalLife,
-      level: config.level,
+      level: levelLabel,
+      end_level: endLevelLabel,
+      level_file: startStem,
+      end_level_file: endStem,
       game: config.game,
       difficulty: config.difficulty,
       reason: finalReason
@@ -238,7 +260,7 @@ export default function SimulatorScreen({ config, onGameEnd }) {
         <div className="card">
           <h2>Starting Game...</h2>
           <p style={{ textAlign: 'center', marginTop: '20px' }}>
-            {config.game.toUpperCase()} - Level {config.level} ({config.difficulty})
+            {config.game.toUpperCase()} - Level {formatLevelLabel(config.playMode, config.level)} ({config.difficulty})
           </p>
         </div>
       </div>
@@ -268,14 +290,15 @@ export default function SimulatorScreen({ config, onGameEnd }) {
   const isMulti = !!(gameState?.multiplayer || config.playerCount === 2)
   const p1Name = config.playerName || 'Player 1'
   const p2Name = config.playerName2 || 'Player 2'
-  const currentLevel = gameState?.current_level ?? config.level
+  const currentLevelRaw = gameState?.current_level ?? config.level
+  const currentLevelLabel = formatLevelLabel(config.playMode, currentLevelRaw)
 
   return (
     <div className="simulator-container">
       <div className="simulator-header">
         <div>
           <h2 style={{ margin: 0 }}>
-            {config.game.toUpperCase()} - Level {currentLevel}
+            {config.game.toUpperCase()} - Level {currentLevelLabel}
           </h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             {config.difficulty?.toUpperCase()}
@@ -313,7 +336,7 @@ export default function SimulatorScreen({ config, onGameEnd }) {
         {showPhaseOverlay(gameState) && phase === 'countdown' && !isOver && (
           <div className="phase-countdown-overlay" aria-live="polite">
             <div className="countdown-num">{overlayLabel ?? '…'}</div>
-            <div className="countdown-level">Level {currentLevel}</div>
+            <div className="countdown-level">Level {currentLevelLabel}</div>
           </div>
         )}
 
@@ -333,7 +356,7 @@ export default function SimulatorScreen({ config, onGameEnd }) {
           <div className="play-hud">
             <div className="hud-board">
               <div className="hud-meta">
-                <span className="hud-level">Level {currentLevel}</span>
+                <span className="hud-level">Level {currentLevelLabel}</span>
                 <span className="hud-diff">{config.difficulty?.toUpperCase()}</span>
                 <span className={`hud-status ${isOver ? 'ended' : phase === 'playing' ? 'playing' : 'transition'}`}>
                   {isOver ? '● ENDED' : phase === 'playing' ? '● PLAYING' : `● ${String(phase).toUpperCase()}`}

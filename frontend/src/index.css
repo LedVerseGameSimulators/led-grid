@@ -100,6 +100,38 @@ input {
   background: rgba(0, 0, 0, 0.55);
 }
 
+/* Opaque plate covering baked-in mp4 watermark; vibrant game title on top */
+.video-bg-brand {
+  position: absolute;
+  z-index: 2;
+  top: max(16px, 3.5vh);
+  left: max(16px, 2.5vw);
+  min-width: min(560px, 48vw);
+  min-height: 6.75rem;
+  padding: 22px 30px 20px;
+  display: flex;
+  align-items: center;
+  background: #000000;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, #222);
+  border-left: 5px solid var(--accent);
+  border-radius: var(--radius-sm, 8px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.9);
+}
+
+.video-bg-brand-title {
+  margin: 0;
+  font-size: clamp(1.7rem, 3.6vw, 2.75rem);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-shadow:
+    0 0 16px color-mix(in srgb, var(--accent) 75%, transparent),
+    0 0 40px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+
 .screen-with-video > *:not(.video-bg) {
   position: relative;
   z-index: 1;

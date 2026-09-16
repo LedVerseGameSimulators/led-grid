@@ -154,7 +154,8 @@ export default function SimulatorScreen({ config, onGameEnd }) {
     const endStem = st.current_level ?? startStem
     const levelLabel = formatLevelLabel(config.playMode, startStem)
     const endLevelLabel = formatLevelLabel(config.playMode, endStem)
-    // Guests (no RFID card): kiosk results only — do not write Grid DB / RFID.
+    // Guests (no RFID): skip save-score only. Always stop the backend game
+    // so BGM / session teardown still run.
     const hasRfidCard = Boolean(config.cardId && String(config.cardId).trim())
 
     try {
@@ -185,10 +186,13 @@ export default function SimulatorScreen({ config, onGameEnd }) {
             player_name2: config.playerName2 || '',
           })
         })
+      }
+      // Always stop game (BGM + floor blank) — guests too
+      if (id) {
         await fetch(`${API_URL}/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ card_id: config.cardId, game_id: id })
+          body: JSON.stringify({ card_id: config.cardId || '', game_id: id })
         })
       }
     } catch (err) {
@@ -260,7 +264,7 @@ export default function SimulatorScreen({ config, onGameEnd }) {
         <div className="card">
           <h2>Starting Game...</h2>
           <p style={{ textAlign: 'center', marginTop: '20px' }}>
-            {config.game.toUpperCase()} - Level {formatLevelLabel(config.playMode, config.level)} ({config.difficulty})
+            Mega Grid - Level {formatLevelLabel(config.playMode, config.level)} ({config.difficulty})
           </p>
         </div>
       </div>
@@ -298,10 +302,14 @@ export default function SimulatorScreen({ config, onGameEnd }) {
       <div className="simulator-header">
         <div>
           <h2 style={{ margin: 0 }}>
-            {config.game.toUpperCase()} - Level {currentLevelLabel}
+            Mega Grid — Level {currentLevelLabel}
           </h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            {config.difficulty?.toUpperCase()}
+            {config.playMode === 'group'
+              ? 'Tournament'
+              : config.playMode === 'multi'
+                ? 'Team Battle'
+                : 'Quick Play'}
           </span>
         </div>
 

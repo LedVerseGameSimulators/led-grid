@@ -1,7 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 
-// Pre-game 3-2-1-GO countdown (mirrors the real game's countdown video).
-export default function CountdownScreen({ config, onDone }) {
+import VideoBackground from '../components/VideoBackground'
+
+/** Pre-game 3-2-1-GO — mock Countdown screen. */
+export default function CountdownScreen({ onDone }) {
   const [n, setN] = useState(3)
   const audioCtxRef = useRef(null)
 
@@ -15,41 +17,54 @@ export default function CountdownScreen({ config, onDone }) {
       const g = ctx.createGain()
       osc.frequency.value = freq
       g.gain.value = 0.18
-      osc.connect(g); g.connect(ctx.destination)
+      osc.connect(g)
+      g.connect(ctx.destination)
       osc.start()
       g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur / 1000)
       osc.stop(ctx.currentTime + dur / 1000)
-    } catch (e) { /* no audio */ }
+    } catch {
+      /* no audio */
+    }
   }
 
   useEffect(() => {
     beep(523, 180)
     const id = setInterval(() => {
-      setN(prev => {
+      setN((prev) => {
         const next = prev - 1
         if (next <= 0) {
           clearInterval(id)
-          beep(880, 350)              // GO!
-          setTimeout(onDone, 600)
+          beep(880, 350)
+          setTimeout(onDone, 500)
           return 0
         }
         beep(523, 180)
         return next
       })
-    }, 1000)
+    }, 800)
     return () => clearInterval(id)
-  }, [])
+  }, [onDone])
+
+  const dotsOn = n === 0 ? 3 : 4 - n
 
   return (
-    <div className="screen">
-      <div className="card" style={{ textAlign: 'center' }}>
-        <p className="countdown-meta">
-          {config.game?.toUpperCase()} · Level {config.level} · {config.difficulty?.toUpperCase()}
-        </p>
-        <div className={`countdown-num${n === 0 ? ' go' : ''}`}>
+    <div className="screen screen-with-video">
+      <VideoBackground />
+      <div className="countdown-shell">
+        <p className="countdown-get-ready">Get Ready</p>
+        <div className={`countdown-big${n === 0 ? ' go' : ''}`}>
           {n === 0 ? 'GO!' : n}
         </div>
-        <p className="countdown-hint">Get ready…</p>
+        <div className="countdown-dots" aria-hidden="true">
+          {[1, 2, 3].map((i) => (
+            <span key={i} className={i <= dotsOn ? 'on' : ''} />
+          ))}
+        </div>
+        <p className="countdown-hint">
+          Counts down 3 – 2 – 1 – GO
+          <br />
+          Game starts automatically
+        </p>
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { API_URL } from '../config'
 import { formatLevelLabel } from '../levelPlaylists'
+import VideoBackground from '../components/VideoBackground'
 
 export default function ResultScreen({ result, config, onPlayAgain, onLogout }) {
   const score = result?.score ?? 0
@@ -12,7 +13,7 @@ export default function ResultScreen({ result, config, onPlayAgain, onLogout }) 
   const REASONS = {
     timeout: 'Time Up!',
     out_of_life: 'Out of Life!',
-    stopped: 'Game Stopped'
+    stopped: 'Game Stopped',
   }
   const reason = REASONS[result?.reason] || 'Game Over'
   const levelLabel = result?.end_level ?? result?.level
@@ -22,8 +23,6 @@ export default function ResultScreen({ result, config, onPlayAgain, onLogout }) 
 
   const [board, setBoard] = useState([])
   useEffect(() => {
-    // Saved score is written before this screen; fetch the level leaderboard.
-    // Key = FE display name (same string sent to /save-score → RFID).
     const t = setTimeout(async () => {
       try {
         const res = await fetch(
@@ -39,20 +38,20 @@ export default function ResultScreen({ result, config, onPlayAgain, onLogout }) 
   }, [leaderboardKey])
 
   return (
-    <div className="screen">
+    <div className="screen screen-with-video">
+      <VideoBackground />
       <div className="card">
         <h1>Game Over</h1>
         <p className="result-reason">{reason}</p>
 
-        {/* Final score panel */}
         <div className="result-score-panel">
           <div className="result-score-label">
-            {multiplayer ? 'P1 SCORE' : 'FINAL SCORE'}
+            {multiplayer ? 'P1 Score' : 'Final Score'}
           </div>
           <div className="result-score-value">{score}</div>
           {multiplayer && (
-            <div style={{ marginTop: '12px' }}>
-              <div className="result-score-label">P2 SCORE</div>
+            <div style={{ marginTop: 12 }}>
+              <div className="result-score-label">P2 Score</div>
               <div className="result-score-value-p2">{score2}</div>
             </div>
           )}
@@ -61,7 +60,7 @@ export default function ResultScreen({ result, config, onPlayAgain, onLogout }) 
         <div className="result-stats">
           <div className="result-stat">
             <div className="result-stat-value">{time.toFixed(1)}s</div>
-            <div className="result-stat-label">Time Played</div>
+            <div className="result-stat-label">Time</div>
           </div>
           <div className="result-stat">
             <div className="result-stat-value">{levelLabel}</div>
@@ -74,44 +73,40 @@ export default function ResultScreen({ result, config, onPlayAgain, onLogout }) 
             >
               {life}
             </div>
-            <div className="result-stat-label">Life Left</div>
+            <div className="result-stat-label">Life</div>
           </div>
           <div className="result-stat">
-            <div className="result-stat-value">{config.difficulty?.toUpperCase()}</div>
+            <div className="result-stat-value">Medium</div>
             <div className="result-stat-label">Difficulty</div>
           </div>
         </div>
 
-        {/* Leaderboard for this level */}
         {board.length > 0 && (
-          <div style={{ marginTop: '20px' }}>
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-              Top Scores — Level {leaderboardKey}
-            </div>
-            <div style={{
-              background: 'var(--bg-input)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-sm)',
-              overflow: 'hidden',
-            }}>
-              {board.map((e, i) => (
-                <div key={i} style={{
-                  display: 'flex', justifyContent: 'space-between',
-                  padding: '8px 14px',
-                  borderBottom: i < board.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                  color: e.card_id === config.cardId ? 'var(--brand-orange)' : 'var(--text-secondary)',
-                  fontWeight: e.card_id === config.cardId ? 'bold' : 'normal'
-                }}>
-                  <span>#{i + 1} &nbsp; {e.card_id || '—'}</span>
-                  <span>{e.score} pts</span>
-                </div>
-              ))}
-            </div>
+          <div style={{ marginTop: 12 }}>
+            <div className="setup-label">Top scores — Level {levelLabel}</div>
+            {board.map((e, i) => (
+              <div
+                key={`${e.card_id}-${i}`}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  padding: '10px 0',
+                  borderBottom: '1px solid rgba(255,255,255,0.08)',
+                  color: e.card_id === config.cardId ? 'var(--accent)' : 'var(--text-muted)',
+                  fontWeight: e.card_id === config.cardId ? 700 : 400,
+                }}
+              >
+                <span>#{i + 1} {e.card_id || '—'}</span>
+                <span>{e.score} pts</span>
+              </div>
+            ))}
           </div>
         )}
 
-        <button onClick={onPlayAgain} style={{ marginTop: '25px' }}>Play Again</button>
-        <button onClick={onLogout} className="btn-secondary" style={{ marginTop: '10px' }}>
+        <button type="button" className="btn-primary" onClick={onPlayAgain} style={{ marginTop: 20 }}>
+          Play Again
+        </button>
+        <button type="button" className="btn-secondary" onClick={onLogout}>
           Logout
         </button>
       </div>

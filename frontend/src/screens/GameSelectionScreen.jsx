@@ -1,49 +1,48 @@
+import VideoBackground from '../components/VideoBackground'
+
 const MODES = [
   {
     id: 'single',
-    title: 'Single Player',
-    desc: 'One player challenge',
-    icon: '1',
+    title: 'Quick Play',
+    sub: 'Solo · Basic',
+    badge: '1',
+    className: 'mode-btn-single',
   },
   {
     id: 'multi',
-    title: 'Multiplayer',
-    desc: 'Two players head-to-head',
-    icon: '2',
+    title: 'Team Battle',
+    sub: 'Co-op · 2 players',
+    badge: '2',
+    className: 'mode-btn-multi',
   },
   {
     id: 'group',
-    title: 'Group',
-    desc: 'Team play mode',
-    icon: 'G',
+    title: 'Tournament',
+    sub: 'Co-op · Bracket',
+    badge: 'T',
+    className: 'mode-btn-group',
   },
 ]
 
 export default function GameSelectionScreen({ onSelect, loading = false }) {
   return (
-    <div className="screen">
-      <div className="landing">
-        <header className="landing-hero">
-          <h1 className="landing-brand">ACTIVERSE</h1>
-          <p className="landing-product">Floor Is Lava</p>
-          <p className="landing-tagline">
-            {loading ? 'Loading group level…' : 'Choose how you want to play'}
-          </p>
-        </header>
-
-        <div className="mode-grid" aria-busy={loading || undefined}>
+    <div className="screen screen-with-video">
+      <VideoBackground />
+      <div className="mode-shell">
+        <p className="mode-shell-title">Choose Mode</p>
+        <div className="mode-list" aria-busy={loading || undefined}>
           {MODES.map((mode) => (
             <button
               key={mode.id}
               type="button"
-              className="mode-card"
+              className={`mode-btn ${mode.className}`}
               disabled={loading}
               onClick={() => onSelect(mode.id)}
             >
-              <span className="mode-card-icon" aria-hidden="true">{mode.icon}</span>
-              <span className="mode-card-text">
-                <span className="mode-card-title">{mode.title}</span>
-                <span className="mode-card-desc">{mode.desc}</span>
+              <span className="mode-badge" aria-hidden="true">{mode.badge}</span>
+              <span className="mode-copy">
+                <span className="mode-title">{mode.title}</span>
+                <span className="mode-sub">{mode.sub}</span>
               </span>
             </button>
           ))}

@@ -4,10 +4,11 @@ import { API_URL, WS_BRIDGE_URL } from '../config'
 import { formatLevelLabel, TOURNAMENT_LEVEL_ORDER } from '../levelPlaylists'
 
 function countdownDisplay(state) {
-  if (state?.phase !== 'countdown') return null
-  const d = state.countdown_digit
-  if (d == null) return null
-  return String(d)
+  if (!state || state.phase !== 'countdown') return null
+  // Hex: phase_step / countdown_step; Grid backend still publishes countdown_digit
+  const step = state.phase_step ?? state.countdown_step ?? state.countdown_digit
+  if (step == null) return ''
+  return String(step)
 }
 
 function isInputBlocked(state) {
@@ -37,18 +38,13 @@ export default function SimulatorScreen({ config, onGameEnd }) {
   const [gameState, setGameState] = useState(null)
   const [gameId, setGameId] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [phaseReady, setPhaseReady] = useState(false)
   const [error, setError] = useState(null)
   const [stopping, setStopping] = useState(false)
   const [showSim, setShowSim] = useState(false)
-  const [goFlash, setGoFlash] = useState(false)
   const iframeRef = useRef(null)
   const gameIdRef = useRef(null)
   const endedRef = useRef(false)
   const stateRef = useRef(null)
-  const phaseReadyRef = useRef(false)
-  const prevPhaseRef = useRef(null)
-  const goFlashTimerRef = useRef(null)
   // Audio: synth beeps via Web Audio (no asset files needed)
   const audioCtxRef = useRef(null)
   const prevScoreRef = useRef(0)
@@ -113,22 +109,6 @@ export default function SimulatorScreen({ config, onGameEnd }) {
     startGame()
   }, [config])
 
-  // After gameId: wait for first phase poll or 2s fallback before showing simulator
-  useEffect(() => {
-    if (!gameId || phaseReady) return
-    const timer = setTimeout(() => {
-      if (!phaseReadyRef.current) {
-        phaseReadyRef.current = true
-        setPhaseReady(true)
-      }
-    }, 2000)
-    return () => clearTimeout(timer)
-  }, [gameId, phaseReady])
-
-  useEffect(() => () => {
-    if (goFlashTimerRef.current) clearTimeout(goFlashTimerRef.current)
-  }, [])
-
   // End the game: stop on backend, record, route to result panel
   const endGame = async (reason) => {
     if (endedRef.current) return
@@ -166,9 +146,9 @@ export default function SimulatorScreen({ config, onGameEnd }) {
           body: JSON.stringify({
             card_id: config.cardId,
             card_id2: config.cardId2 || null,
-            level: levelLabel,              // FE display → Grid DB → RFID LB
+            level: levelLabel,
             end_level: endLevelLabel,
-            level_file: startStem,          // real stem (ops/debug only)
+            level_file: startStem,
             end_level_file: endStem,
             score: finalScore,
             score2: finalScore2,
@@ -224,25 +204,14 @@ export default function SimulatorScreen({ config, onGameEnd }) {
         const data = await response.json()
         if (data.success) {
           const st = data.state
-          const backendAudio = st.audio_active === true
-          // Sound cues on score gain / life loss (mute when backend AudioManager active)
-          if (!backendAudio) {
-            if (st.score > prevScoreRef.current) playScore()
-            if (prevLifeRef.current !== null && st.life < prevLifeRef.current) playHurt()
-          }
+          const backendAudio =
+            st.backend_audio_active === true || st.audio_active === true
+          const inputLive = st.accepting_input === true && st.phase === 'playing'
+          // Sound cues on score gain / life loss (mute when backend audio owns SFX)
+          if (!backendAudio && inputLive && st.score > prevScoreRef.current) playScore()
+          if (!backendAudio && inputLive && prevLifeRef.current !== null && st.life < prevLifeRef.current) playHurt()
           prevScoreRef.current = st.score
           prevLifeRef.current = st.life
-
-          if (!phaseReadyRef.current && st.phase) {
-            phaseReadyRef.current = true
-            setPhaseReady(true)
-          }
-          if (prevPhaseRef.current === 'countdown' && st.phase === 'playing') {
-            setGoFlash(true)
-            if (goFlashTimerRef.current) clearTimeout(goFlashTimerRef.current)
-            goFlashTimerRef.current = setTimeout(() => setGoFlash(false), 600)
-          }
-          prevPhaseRef.current = st.phase
 
           setGameState(st)
           stateRef.current = st
@@ -254,17 +223,17 @@ export default function SimulatorScreen({ config, onGameEnd }) {
         console.error('Poll error:', err)
       }
     }
-    const interval = setInterval(pollState, 16)
+    const interval = setInterval(pollState, 100)
     return () => clearInterval(interval)
   }, [gameId])
 
-  if (loading || (gameId && !phaseReady)) {
+  if (loading) {
     return (
       <div className="screen">
         <div className="card">
           <h2>Starting Game...</h2>
           <p style={{ textAlign: 'center', marginTop: '20px' }}>
-            Mega Grid - Level {formatLevelLabel(config.playMode, config.level)} ({config.difficulty})
+            {config.game.toUpperCase()} - Level {config.level} ({config.difficulty})
           </p>
         </div>
       </div>
@@ -290,7 +259,8 @@ export default function SimulatorScreen({ config, onGameEnd }) {
   const isOver = gameState?.game_over
   const phase = gameState?.phase || (isOver ? 'session_end' : 'playing')
   const inputLocked = isInputBlocked(gameState)
-  const overlayLabel = countdownDisplay(gameState)
+  const countdownLabel = countdownDisplay(gameState)
+  const phaseOverlay = showPhaseOverlay(gameState) && !isOver
   const isMulti = !!(gameState?.multiplayer || config.playerCount === 2)
   const p1Name = config.playerName || 'Player 1'
   const p2Name = config.playerName2 || 'Player 2'
@@ -332,7 +302,7 @@ export default function SimulatorScreen({ config, onGameEnd }) {
         </div>
       </div>
 
-      {/* Stable stage: iframe always mounted; HUD overlays on top */}
+      {/* Stable stage: iframe always full-size; HUD overlays on top */}
       <div className="simulator-stage">
         <iframe
           ref={iframeRef}
@@ -341,31 +311,34 @@ export default function SimulatorScreen({ config, onGameEnd }) {
           title="Game Simulator"
         />
 
-        {showPhaseOverlay(gameState) && phase === 'countdown' && !isOver && (
-          <div className="phase-countdown-overlay" aria-live="polite">
-            <div className="countdown-num">{overlayLabel ?? '…'}</div>
-            <div className="countdown-level">Level {currentLevelLabel}</div>
+        {phaseOverlay && gameState?.phase === 'countdown' && (
+          <div
+            className={`phase-countdown-overlay step-${countdownLabel || 'pending'}`}
+            aria-live="polite"
+          >
+            <div className="phase-countdown-digit">{countdownLabel || '…'}</div>
+            <div className="phase-countdown-level">Level {currentLevelLabel}</div>
           </div>
         )}
 
-        {goFlash && (
-          <div className="phase-countdown-overlay phase-countdown-overlay--go" aria-live="polite">
-            <div className="countdown-num go">GO!</div>
+        {phaseOverlay && gameState?.phase === 'level_clear' && (
+          <div className="phase-transition-overlay level-clear-overlay" aria-live="polite">
+            Level clear!
           </div>
         )}
 
-        {(phase === 'level_clear' || phase === 'level_fail') && !isOver && (
-          <div className={`phase-overlay ${phase}-overlay`} aria-live="polite">
-            {phase === 'level_clear' ? 'Level clear' : 'Try again'}
+        {phaseOverlay && gameState?.phase === 'level_fail' && (
+          <div className="phase-transition-overlay level-fail-overlay" aria-live="polite">
+            Try again!
           </div>
         )}
 
         {!showSim && (
-          <div className="play-hud">
+          <div className={`play-hud ${inputLocked ? 'play-hud--locked' : ''}`}>
             <div className="hud-board">
               <div className="hud-meta">
                 <span className="hud-level">Level {currentLevelLabel}</span>
-                <span className="hud-diff">{config.difficulty?.toUpperCase()}</span>
+                <span className="hud-diff">MEDIUM</span>
                 <span className={`hud-status ${isOver ? 'ended' : phase === 'playing' ? 'playing' : 'transition'}`}>
                   {isOver ? '● ENDED' : phase === 'playing' ? '● PLAYING' : `● ${String(phase).toUpperCase()}`}
                 </span>

@@ -899,6 +899,110 @@ def _next_scoreable_wave_start(groups, *, total_pass, multiplayer):
     return min(starts) if starts else None
 
 
+def _mp_remaining_in_window(groups, *, total_pass, side_color):
+    """Count one MP side's scoreable members in the current time window."""
+    total = 0
+    for group in groups.values():
+        if getattr(group, "type", None) != "floor_light":
+            continue
+        if _group_main_color(group.color) != side_color:
+            continue
+        start = getattr(group, "start_time_sec", 0)
+        end = getattr(group, "end_time_sec", 0)
+        if not (start <= total_pass <= end):
+            continue
+        members = getattr(group, "start_member", None)
+        if members:
+            total += len(members)
+    return total
+
+
+def _discard_mp_side_leftovers(groups, *, total_pass, side_color):
+    """Discard current-window scoreable members for one MP side.
+
+    Mirrors ``_consume_cell`` time-window filtering — future waves untouched.
+    """
+    discarded = False
+    for group in groups.values():
+        if getattr(group, "type", None) != "floor_light":
+            continue
+        if _group_main_color(group.color) != side_color:
+            continue
+        start = getattr(group, "start_time_sec", 0)
+        end = getattr(group, "end_time_sec", 0)
+        if not (start <= total_pass <= end):
+            continue
+        members = getattr(group, "start_member", None)
+        if not members:
+            continue
+        if isinstance(members, set):
+            if members:
+                members.clear()
+                discarded = True
+        else:
+            if len(members) > 0:
+                members[:] = []
+                discarded = True
+    return discarded
+
+
+def _mp_side_in_window(groups, *, total_pass, side_color):
+    """True if this side has any scoreable group active in the time window."""
+    for group in groups.values():
+        if getattr(group, "type", None) != "floor_light":
+            continue
+        if _group_main_color(group.color) != side_color:
+            continue
+        start = getattr(group, "start_time_sec", 0)
+        end = getattr(group, "end_time_sec", 0)
+        if start <= total_pass <= end:
+            return True
+    return False
+
+
+def _mp_update_wave_latch(game, groups, *, total_pass, goal_cells, goal2_cells):
+    """Latch which MP sides had scoreables this wave (vacuous-empty guard)."""
+    if goal_cells or _mp_side_in_window(
+        groups, total_pass=total_pass, side_color=_GRID_P1_COLOR
+    ):
+        game._mp_wave_had_p1 = True
+    if goal2_cells or _mp_side_in_window(
+        groups, total_pass=total_pass, side_color=_GRID_P2_COLOR
+    ):
+        game._mp_wave_had_p2 = True
+
+
+def _mp_either_player_discard(game, groups, *, total_pass):
+    """When either latched side clears the wave, discard the other's leftovers."""
+    if not game.multiplayer:
+        return False
+    rem_p1 = _mp_remaining_in_window(
+        groups, total_pass=total_pass, side_color=_GRID_P1_COLOR
+    )
+    rem_p2 = _mp_remaining_in_window(
+        groups, total_pass=total_pass, side_color=_GRID_P2_COLOR
+    )
+    p1_cleared = game._mp_wave_had_p1 and rem_p1 == 0
+    p2_cleared = game._mp_wave_had_p2 and rem_p2 == 0
+    if not (p1_cleared or p2_cleared):
+        return False
+    discarded = False
+    if p1_cleared and game._mp_wave_had_p2 and rem_p2 > 0:
+        discarded |= _discard_mp_side_leftovers(
+            groups, total_pass=total_pass, side_color=_GRID_P2_COLOR
+        )
+    if p2_cleared and game._mp_wave_had_p1 and rem_p1 > 0:
+        discarded |= _discard_mp_side_leftovers(
+            groups, total_pass=total_pass, side_color=_GRID_P1_COLOR
+        )
+    return discarded
+
+
+def _mp_reset_wave_latch(game):
+    game._mp_wave_had_p1 = False
+    game._mp_wave_had_p2 = False
+
+
 def _level_progress_action(
     groups,
     *,
@@ -1051,6 +1155,8 @@ class GameInstance:
         self._level_cleared = False    # True -> advance to next level
         self._restart_level = False    # True -> replay same level (life=0, time left)
         self._no_reachable_goal_since = None  # monotonic clock for masked-goal grace
+        self._mp_wave_had_p1 = False  # vacuous-empty latch (MP current wave)
+        self._mp_wave_had_p2 = False
 
         self.current_state = {
             "score": 0,
@@ -1127,6 +1233,7 @@ class GameInstance:
             self._level_cleared = False
             self._restart_level = False
             self._no_reachable_goal_since = None
+            _mp_reset_wave_latch(self)
 
     def begin_level_transition(self):
         """Fail closed while level geometry and classification are changing."""
@@ -1715,6 +1822,31 @@ class GameManager:
                         deduct_cells = classified["deduct"]
                         cell_win = classified["winners"]
 
+                        # ── MP either-player discard (Phase B) ───────────────
+                        if game.multiplayer:
+                            _mp_update_wave_latch(
+                                game,
+                                dgroup,
+                                total_pass=total_pass,
+                                goal_cells=goal_cells,
+                                goal2_cells=goal2_cells,
+                            )
+                            if _mp_either_player_discard(
+                                game, dgroup, total_pass=total_pass
+                            ):
+                                classified = _classify_floor_groups(
+                                    dgroup,
+                                    total_pass=total_pass,
+                                    multiplayer=game.multiplayer,
+                                    rows=led_table.led_row,
+                                    cols=led_table.led_col,
+                                )
+                                goal_cells = classified["goal"]
+                                goal2_cells = classified["goal2"]
+                                red_cells = classified["red"]
+                                deduct_cells = classified["deduct"]
+                                cell_win = classified["winners"]
+
                         # ── LEVEL COMPLETION ─────────────────────────────────
                         # Count scoreable tiles remaining across ALL groups
                         # (active + future waves). When all consumed → complete.
@@ -1747,6 +1879,7 @@ class GameManager:
                         # Mirrors real game's running_by_blue auto-jump.
                         if progress_action == "jump":
                             game._no_reachable_goal_since = None
+                            _mp_reset_wave_latch(game)
                             logger.debug(f"Auto-jump: {total_pass:.1f}s -> {next_start:.1f}s")
                             play_self.total_pass = next_start
                             game.last_life_loss_time = 0.0  # reset hazard gate

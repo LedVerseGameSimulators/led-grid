@@ -21,9 +21,6 @@ ROOT = Path(__file__).resolve().parents[1]
 LEDB_2P = ROOT / "games" / "source" / "----" / "01.ledb"
 FLOOR_LIGHT = Setting.FLOOR_LIGHT
 
-# Parked: either-player advance is Phase B — do not fail this suite on it.
-PHASE_B_EITHER_PLAYER_ADVANCE = "parked Phase B"
-
 
 def _rings(rgb):
     return [rgb, rgb, rgb]
@@ -296,30 +293,31 @@ def test_1p_deduct_score_consume_no_life():
     assert (4, 4) not in groups["deduct"].start_member
 
 
-# ── 7. Phase B either-player advance not implemented (note only) ──────────
+# ── 7. Phase B either-player advance ─────────────────────────────────────
 
 
-def test_either_player_advance_not_implemented_yet():
-    """Remaining counts BOTH P1+P2 colors — clearing only one side does not clear."""
+def test_either_player_advance_discards_other_side():
+    """Clearing P1 while P2 leftovers exist discards P2 and allows jump."""
     groups, _ = _prepare(
         {
             "p1": _group("p1", Color.BLUE, {(1, 1)}),
             "p2": _group("p2", (254, 128, 0), {(2, 2)}),
+            "p1_next": _group("p1_next", Color.BLUE, {(3, 3)}, start=50.0, end=100.0),
         }
     )
-    # Consume only P1 cells
     groups["p1"].start_member.clear()
-    remaining = game_manager._remaining_scoreable_members(
-        groups, multiplayer=True
-    )
-    assert remaining > 0, "P2 tiles should still block clear (Phase B not shipped)"
-    action, _, rem = game_manager._level_progress_action(
+    game = _game(groups, multiplayer=True)
+    game._mp_wave_had_p1 = True
+    game._mp_wave_had_p2 = True
+    assert game_manager._mp_either_player_discard(game, groups, total_pass=2.0)
+    assert len(groups["p2"].start_member) == 0
+    action, next_start, rem = game_manager._level_progress_action(
         groups,
         total_pass=2.0,
         multiplayer=True,
         active_goal_cells=set(),
-        active_goal2_cells=_classify(groups, multiplayer=True)["goal2"],
+        active_goal2_cells=set(),
     )
-    assert action == "continue"
+    assert action == "jump"
+    assert next_start == 50.0
     assert rem > 0
-    assert PHASE_B_EITHER_PLAYER_ADVANCE == "parked Phase B"

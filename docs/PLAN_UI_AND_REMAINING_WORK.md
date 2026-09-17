@@ -49,7 +49,8 @@ Hex-style contract (logical names for RFID / LB):
 
 ## Non-FE leftovers
 
-- [ ] Shared **2P rules** later (lives-only red; either-player advance; goal-color HUD) — parent `PLAN_MULTIPLAYER_SCORING_AND_HUD.md`
+- [x] Shared **2P rules Phase A** (lives-only red/DEDUCT; goal-color HUD) — see parent `PLAN_MULTIPLAYER_SCORING_AND_HUD.md`
+- [x] Shared **2P rules Phase B** (either-player wave advance + vacuous latch) — **`docs/MP_PHASE_B_TEST_LEVELS.md`**
 - [ ] Optional: delete dead `CountdownScreen` / `SettingsScreen`
 
 ### Notes

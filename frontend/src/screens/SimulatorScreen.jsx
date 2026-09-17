@@ -34,6 +34,15 @@ function HeartRow({ life, maxLife }) {
   )
 }
 
+/** CSS color from backend goal_color [r,g,b] or goal_color_hex. */
+function goalSwatchCss(rgb, hex) {
+  if (typeof hex === 'string' && hex) return hex
+  if (Array.isArray(rgb) && rgb.length >= 3) {
+    return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`
+  }
+  return null
+}
+
 export default function SimulatorScreen({ config, onGameEnd }) {
   const [gameState, setGameState] = useState(null)
   const [gameId, setGameId] = useState(null)
@@ -266,6 +275,14 @@ export default function SimulatorScreen({ config, onGameEnd }) {
   const p2Name = config.playerName2 || 'Player 2'
   const currentLevelRaw = gameState?.current_level ?? config.level
   const currentLevelLabel = formatLevelLabel(config.playMode, currentLevelRaw)
+  // Goal swatches: only when backend says Team Battle multiplayer (not FE playerCount alone)
+  const showGoalSwatches = gameState?.multiplayer === true
+  const p1SwatchCss = showGoalSwatches
+    ? goalSwatchCss(gameState.goal_color, gameState.goal_color_hex)
+    : null
+  const p2SwatchCss = showGoalSwatches
+    ? goalSwatchCss(gameState.goal2_color, gameState.goal2_color_hex)
+    : null
 
   return (
     <div className="simulator-container">
@@ -354,6 +371,14 @@ export default function SimulatorScreen({ config, onGameEnd }) {
                   )}
                   <div className="hud-score">{gameState?.score ?? 0}</div>
                   <div className="hud-score-label">{isMulti ? 'P1 Score' : 'Score'}</div>
+                  {p1SwatchCss && (
+                    <div
+                      className="hud-goal-swatch"
+                      style={{ backgroundColor: p1SwatchCss }}
+                      title="P1 target color"
+                      aria-label="P1 target color"
+                    />
+                  )}
                 </div>
                 {isMulti && (
                   <div className="hud-player hud-player--p2">
@@ -365,6 +390,14 @@ export default function SimulatorScreen({ config, onGameEnd }) {
                     )}
                     <div className="hud-score">{gameState?.score2 ?? 0}</div>
                     <div className="hud-score-label">P2 Score</div>
+                    {p2SwatchCss && (
+                      <div
+                        className="hud-goal-swatch"
+                        style={{ backgroundColor: p2SwatchCss }}
+                        title="P2 target color"
+                        aria-label="P2 target color"
+                      />
+                    )}
                   </div>
                 )}
               </div>

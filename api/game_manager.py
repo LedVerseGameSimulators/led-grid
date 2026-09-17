@@ -1248,24 +1248,23 @@ class GameInstance:
 
     def try_score_cell(self, i, j, total_pass=None):
         """Type-aware scoring for a press on cell (i,j):
-          - red hazard cell  -> -1 point + -1 HP (HP rate-limited)
+          - red hazard cell  -> 1P: -1 score + -1 HP; MP: life only (rate-limited)
+          - DEDUCT tile      -> 1P: -1 score + consume; MP: life only + consume
           - goal_led target  -> +1 point + consume (tile blanks) + flash
           - background decor  -> nothing (neutral)
         goal/red membership is classified per frame in the callback."""
         if total_pass is None:
             total_pass = self._current_level_time()
-        # Red hazard: penalty + HP loss (gated). Not edge-limited by
-        # scored_active (standing on red keeps hurting, rate-limited by time).
+        # Red hazard: HP loss (gated). Not edge-limited by scored_active
+        # (standing on red keeps hurting, rate-limited by time).
+        # Team Battle (multiplayer): lives only — no score/score2 change.
         if (i, j) in self.red_cells:
             now = time.time()
             if now - self.last_life_loss_time >= self._life_count_time:
-                self.score -= 1
-                if self.score < 0:
-                    self.score = 0
-                if self.multiplayer:          # red hurts both players in 2P
-                    self.score2 -= 1
-                    if self.score2 < 0:
-                        self.score2 = 0
+                if not self.multiplayer:
+                    self.score -= 1
+                    if self.score < 0:
+                        self.score = 0
                 self.life -= 1
                 self.last_life_loss_time = now
                 audio = getattr(self, "_audio", None)
@@ -1273,14 +1272,16 @@ class GameInstance:
                     audio.play_score_negative()
             self._sync_live_feedback()
             return
-        # DEDUCT tile: -1 SCORE only (NO life loss), then consume.
-        # Faithful to original gui_editor_game.py (DEDUCT_COLOR block):
-        # scode_value -= ONE_SCODE_VALUE, no life_value change.
+        # DEDUCT tile: consume always. 1P: -1 SCORE only (NO life loss),
+        # faithful to gui_editor_game.py. MP: life only (no score/score2).
         if (i, j) in self.deduct_cells and (i, j) not in self.scored_active:
             self.scored_active.add((i, j))
-            self.score -= 1
-            if self.score < 0:
-                self.score = 0
+            if self.multiplayer:
+                self.life -= 1
+            else:
+                self.score -= 1
+                if self.score < 0:
+                    self.score = 0
             self._consume_cell(i, j, total_pass)
             self._sync_live_feedback()
             return
@@ -1853,6 +1854,23 @@ class GameManager:
                         game._frame_count = frame_counter["n"]
                         game._last_frame_at = time.time()
 
+                        # MP HUD: publish hard-coded P1/P2 scoring colors.
+                        if game.multiplayer:
+                            _gc = list(_GRID_P1_COLOR)
+                            _gc2 = list(_GRID_P2_COLOR)
+                            _goal_color_kw = {
+                                "goal_color": _gc,
+                                "goal2_color": _gc2,
+                                "goal_color_hex": "#{:02x}{:02x}{:02x}".format(*_GRID_P1_COLOR),
+                                "goal2_color_hex": "#{:02x}{:02x}{:02x}".format(*_GRID_P2_COLOR),
+                            }
+                        else:
+                            _goal_color_kw = {
+                                "goal_color": None,
+                                "goal2_color": None,
+                                "goal_color_hex": None,
+                                "goal2_color_hex": None,
+                            }
                         game.update_state(
                             score=game.score,
                             score2=game.score2,
@@ -1873,6 +1891,7 @@ class GameManager:
                             accepting_input=game.accepting_input,
                             countdown_digit=None,
                             effect_name=None,
+                            **_goal_color_kw,
                         )
 
                         frame_counter["n"] += 1

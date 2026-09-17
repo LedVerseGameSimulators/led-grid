@@ -63,3 +63,11 @@ Hex-style contract (logical names for RFID / LB):
 |-------|------------------------|
 | Loop | `~/Downloads/activerse_redesign/grid_background.mp4` |
 | Still | `~/Downloads/activerse_redesign/grid.jpeg` |
+
+## Product Q&A (2026-09-17 MP Phase A)
+
+- Team Battle **DEDUCT = lives only** (no score) — **final for now** (Hex / Climb / Grid).
+- Keep **red cooldown** vs **DEDUCT one-shot** asymmetry.
+- Climb DK packs may omit DEDUCT today; later levels may add it — OK.
+- Hex **normal** levels: hurt SFX on red/DEDUCT hits; score SFX on scoreable hits (P1 and P2).
+- Stale “2P red hits both scores” comments updated to lives-only wording.

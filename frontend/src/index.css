@@ -1,11 +1,11 @@
-/* Mega Grid — tokens from redesign mock (#FF2A2A accent). No PDF. */
+/* Mega Grid — tokens from redesign mock (#EE3736 accent). No PDF. */
 :root {
   --bg: #000000;
   --bg-card: #121218;
   --bg-chip: #1a1a22;
-  --accent: #FF2A2A;
+  --accent: #EE3736;
   --accent-text: #ffffff;
-  --border-accent: #FF2A2A;
+  --border-accent: #EE3736;
   --border-cyan: #00e5ff;
   --border-purple: #9b5cff;
   --text: #ffffff;
@@ -25,13 +25,13 @@
   --bg-input: #0a0a10;
   --text-primary: var(--text);
   --text-secondary: var(--text-muted);
-  --border-subtle: rgba(255, 42, 42, 0.25);
+  --border-subtle: rgba(238, 55, 54, 0.25);
   --border-strong: var(--accent);
   --color-error: #ff4d6a;
   --color-success: #51cf66;
   --radius-md: var(--radius);
   --radius-lg: 16px;
-  --accent-gradient: linear-gradient(135deg, var(--accent), #c41e1e);
+  --accent-gradient: linear-gradient(135deg, var(--accent), #C42D2C);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -114,7 +114,9 @@ input {
   left: 20px;
   padding: 14px 22px 12px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
   background: #000000;
   border: 1px solid color-mix(in srgb, var(--accent) 45%, #222);
   border-left: 5px solid var(--accent);
@@ -123,12 +125,32 @@ input {
   pointer-events: none;
 }
 
+.video-bg-brand-mark {
+  margin: 0;
+  display: flex;
+  font-size: clamp(0.65rem, 1.2vw, 0.85rem);
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.video-bg-brand-mark-ch-0 { color: #FF7A00; }
+.video-bg-brand-mark-ch-1 { color: #F5C400; }
+.video-bg-brand-mark-ch-2 { color: #3DE0D0; }
+.video-bg-brand-mark-ch-3 { color: #2BB8E8; }
+.video-bg-brand-mark-ch-4 { color: #2F5BFF; }
+.video-bg-brand-mark-ch-5 { color: #7A3CFF; }
+.video-bg-brand-mark-ch-6 { color: #FF2D9B; }
+.video-bg-brand-mark-ch-7 { color: #FF7A00; }
+.video-bg-brand-mark-ch-8 { color: #F5C400; }
+
 .video-bg-brand-title {
   margin: 0;
-  font-size: clamp(1.35rem, 2.6vw, 2rem);
+  font-size: clamp(1.25rem, 2.4vw, 1.85rem);
   font-weight: 900;
   letter-spacing: 0.1em;
-  line-height: 1.05;
+  line-height: 1;
   text-transform: uppercase;
   color: #ffffff;
   text-shadow:

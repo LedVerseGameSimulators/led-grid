@@ -2,6 +2,7 @@
 REM Start Grid (Floor Is Lava) dev stack (API 8003, ws_bridge 8769, UI 5176).
 REM NOTE: This game lives inside activerse_final_changes\led-grid\
 setlocal
+set ACTIVERSE_KIOSK=0
 cd /d "%~dp0.."
 
 echo ==^> LED Grid dev stack from %CD%

@@ -52,6 +52,13 @@ if errorlevel 1 (
   popd
   goto :fail
 )
+
+echo Building frontend for kiosk preview...
+call npm run build
+if errorlevel 1 (
+  popd
+  goto :fail
+)
 popd
 
 if not exist "frontend\.env" (

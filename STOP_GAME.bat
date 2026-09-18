@@ -1,40 +1,42 @@
 @echo off
-REM ============================================================
-REM  LED Grid (Floor Is Lava) - Studio stop script
-REM  Double-click to shut down the three game windows/ports.
-REM ============================================================
 setlocal EnableExtensions
+cd /d "%~dp0"
 
 set "QUIET=%~1"
-
-if /I not "%QUIET%"=="/quiet" (
-  title LED Grid - Stopping...
+if /i not "%QUIET%"=="/quiet" (
+  title LED Grid - Stopping
   echo.
-  echo  Stopping LED Grid...
-)
-
-REM Close the named cmd windows started by START_GAME.bat
-taskkill /FI "WINDOWTITLE eq LED Grid - Floor Engine*" /F >nul 2>&1
-taskkill /FI "WINDOWTITLE eq LED Grid - Display Bridge*" /F >nul 2>&1
-taskkill /FI "WINDOWTITLE eq LED Grid - Game Screen*" /F >nul 2>&1
-REM Older / alternate titles from scripts\start-dev.bat
-taskkill /FI "WINDOWTITLE eq LED Grid API*" /F >nul 2>&1
-taskkill /FI "WINDOWTITLE eq LED Grid ws_bridge*" /F >nul 2>&1
-taskkill /FI "WINDOWTITLE eq LED Grid Frontend*" /F >nul 2>&1
-
-REM Also free the ports in case a process was left hanging
-for %%P in (8003 8769 5176) do (
-  for /f "tokens=5" %%A in ('netstat -ano ^| findstr ":%%P " ^| findstr "LISTENING"') do (
-    taskkill /PID %%A /F >nul 2>&1
-  )
-)
-
-if /I not "%QUIET%"=="/quiet" (
-  echo  Done. LED Grid is stopped.
+  echo ========================================
+  echo   LED GRID - Stopping game
+  echo ========================================
   echo.
-  echo  Press any key to close.
-  pause >nul
 )
 
+REM Kill by window titles started by START_GAME.bat
+taskkill /FI "WINDOWTITLE eq LED Grid API*" /T /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq LED Grid ws_bridge*" /T /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq LED Grid UI*" /T /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq LED Grid Frontend*" /T /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq Activerse Kiosk Exit*" /T /F >nul 2>&1
+REM Older titles from previous START_GAME.bat versions
+taskkill /FI "WINDOWTITLE eq LED Grid - Floor Engine*" /T /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq LED Grid - Display Bridge*" /T /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq LED Grid - Game Screen*" /T /F >nul 2>&1
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\kiosk\kill-kiosk-browser.ps1" -ProfileSlug grid
+
+REM Also free ports (works even if window titles differ)
+powershell -NoProfile -Command ^
+  "foreach ($p in 8003,8769,5176) { Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue } }" >nul 2>&1
+
+if /i "%QUIET%"=="/quiet" (
+  endlocal
+  exit /b 0
+)
+
+echo.
+echo LED Grid stopped. Ports 8003 / 8769 / 5176 are free.
+echo You can close this window.
+echo.
+pause
 endlocal
-exit /b 0

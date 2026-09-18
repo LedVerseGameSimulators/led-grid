@@ -1,32 +1,20 @@
-# LED Grid (Floor Is Lava) — Studio Operator Guide
+# LED Grid (Floor Is Lava) — Operator Guide
 
-This game does **not** start from a single `.exe` like the old LedPlay program.
-It needs **three small programs** running together. You do **not** need to start
-them by hand — use the starter file below.
+Simple start / play / stop for floor staff. No coding needed.
 
----
+## Start
 
-## Start the game (normal open)
+1. Double-click **`START_GAME.bat`** in this folder.
+2. Wait until you see **LED GRID is running (HARDWARE)**.
+3. The API window must say **HARDWARE MODE ON**.
+4. The browser opens in **fullscreen kiosk** at **http://127.0.0.1:5176/**.
+5. **Ctrl+Shift+K** exits fullscreen only (the game keeps running). Use **`STOP_GAME.bat`** to stop the game.
+6. Leave the minimized service windows open while playing.
+7. When a game starts, the **physical floor** and the on-screen sim both run.
 
-1. Make sure the LED floor PC is on and the floor USB cable(s) are plugged in.
-2. Open the game folder:
-   `C:\Users\Administrator\Downloads\led-grid`
-   *(or wherever this copy lives on the studio PC)*
-3. **Double-click** `START_GAME.bat`
-4. Wait about 10 seconds. Your browser should open the game screen at:
-   **http://localhost:5176/**
-5. Leave the **three black console windows** open while the floor is in use.
-   Closing them stops the game.
+**Engineers / debug:** use `scripts\start-dev.bat` (normal browser, Vite dev server — not kiosk).
 
-| Window title | What it does |
-|---|---|
-| LED Grid — Floor Engine | Talks to the physical LED floor and runs the game logic |
-| LED Grid — Display Bridge | Keeps the on-screen map in sync |
-| LED Grid — Game Screen | The UI guests / operators use |
-
----
-
-## Play a session
+## Play
 
 1. On the landing screen, pick a mode:
    - **Single** — 1 player; then pick tier/level/difficulty
@@ -34,47 +22,38 @@ them by hand — use the starter file below.
    - **Group** — skips level picker; uses the Group playlist (`games\source_group`)
 2. On login:
    - RFID: scan / enter card → **Validate** first → then **Start Game**
-     (team roster names show after a successful validate when the RFID server sends them)
    - Or use **Skip — Play as Guest** if RFID is not set up
-3. The physical floor should show the same pattern as the on-screen grid.
-4. Guests score by stepping on safe tiles; lava tiles cost life.
+3. Use **one browser tab only**.
+4. The physical floor and the on-screen simulator run together.
 
----
+## Stop
 
-## Stop the game (end of day / restart)
+1. Double-click **`STOP_GAME.bat`**.
+2. Wait until it says the game stopped.
+3. Close any leftover black windows if they are still open.
 
-1. **Double-click** `STOP_GAME.bat`
-2. Or manually close the three “LED Grid — …” windows.
+## Common fixes
 
-If the game feels stuck or the floor does not update, stop with `STOP_GAME.bat`,
-wait 5 seconds, then run `START_GAME.bat` again.
+| Problem | What to do |
+|---------|------------|
+| Start says Python not found | Ask tech to install Python 3.11 with "Add to PATH". |
+| Start says Node.js not found | Ask tech to install Node.js LTS. |
+| Start says floor settings missing | Ask tech to copy `games\setting\` files onto this PC. |
+| Browser page blank / won't load | Wait 10–15 seconds after start, then refresh. Or run `STOP_GAME.bat`, then `START_GAME.bat` again. |
+| Floor LEDs dark but game runs in browser | Check USB cable to the floor controller. Run start again. |
+| Two games fighting each other / freeze | Close all browser tabs, run `STOP_GAME.bat`, then start once with one tab. |
+| Need to reboot game mid-day | `STOP_GAME.bat` → wait → `START_GAME.bat`. |
 
----
+## Packaging / updates
 
-## Quick troubleshooting
+- Download the latest release zip from **GitHub Releases** (operators do not need git).
+- Extract the zip to a folder on the PC.
+- Double-click **`LED Grid.exe`** (or **`START_GAME.bat`** — both start the game the same way).
+- **First time on a new PC:** a technician runs **`SETUP_FIRST_TIME.bat`** once to install Python packages and frontend dependencies. The PC must already have **Python 3.11**, **Node.js LTS**, and **Chrome or Edge** installed.
+- **Updates:** stop the game with `STOP_GAME.bat`, then replace the folder with the new release zip (or drop in the new `LED Grid.exe`).
 
-| Problem | What to try |
-|---|---|
-| Starter says Python not found | Python 3.11 must be installed with “Add to PATH” |
-| Starter says npm not found | Install Node.js LTS from https://nodejs.org |
-| Floor stays dark / no green on old test | USB / COM ports — ask tech; do not edit `games\setting` |
-| Browser page will not load | Wait a few more seconds, then open http://localhost:5176/ yourself |
-| “Port already in use” | Run `STOP_GAME.bat`, then `START_GAME.bat` again |
-| RFID card login fails | Use Guest mode for now — network RFID is set up separately |
+## Notes
 
-**Do not** edit files inside `games\setting\` (floor COM port config).
-**Do not** run the old `D:\ledplayv020507\ledplay` program at the same time —
-both would fight for the same floor USB ports.
-
----
-
-## For technicians only
-
-| Service | Address |
-|---|---|
-| Game UI | http://localhost:5176 |
-| Game API | http://localhost:8003 |
-| Display bridge | http://localhost:8769 |
-
-Hardware mode is turned on automatically by `START_GAME.bat`
-(`USE_SERIAL_HD=1`). Floor settings are loaded from `games\setting\led_parameter`.
+- These buttons only **run and stop** LED Grid on this PC.
+- They do **not** change Wi‑Fi / LAN / RFID server settings.
+- Port used by the game UI: **5176**.

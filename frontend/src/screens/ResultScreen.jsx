@@ -17,9 +17,13 @@ export default function ResultScreen({ result, config, onPlayAgain, onLogout }) 
   }
   const reason = REASONS[result?.reason] || 'Game Over'
   const levelLabel = result?.end_level ?? result?.level
-    ?? formatLevelLabel(config.playMode, result?.end_level ?? config.level)
+    ?? formatLevelLabel(
+      config.playMode,
+      result?.end_level ?? config.level,
+      config.playlists
+    )
   const leaderboardKey = result?.level
-    ?? formatLevelLabel(config.playMode, config.level)
+    ?? formatLevelLabel(config.playMode, config.level, config.playlists)
 
   const [board, setBoard] = useState([])
   useEffect(() => {

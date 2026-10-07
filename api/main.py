@@ -16,7 +16,7 @@ from .models import (
     GameState, GameInput, GameResult, LogoutRequest, LogoutResponse
 )
 from .database import get_db
-from .game_manager import get_manager
+from .game_manager import get_manager, get_mode_playlists, validate_playlist_start
 
 # Setup logging
 logger.add("logs/api.log", rotation="500 MB", level="INFO")
@@ -86,6 +86,13 @@ async def login(request: LoginRequest) -> LoginResponse:
         return LoginResponse(success=False, error=str(e))
 
 
+# ============= MODE PLAYLISTS =============
+@app.get("/playlists")
+async def get_playlists():
+    """Canonical mode playlists (same as api/mode_playlists.json)."""
+    return get_mode_playlists()
+
+
 # ============= START GAME ENDPOINT =============
 @app.post("/start-game")
 async def start_game(request: StartGameRequest) -> StartGameResponse:
@@ -112,6 +119,12 @@ async def start_game(request: StartGameRequest) -> StartGameResponse:
         level = request.level
         if mode == "group" and (level is None or str(level).strip() == ""):
             level = "auto"
+
+        try:
+            validate_playlist_start(level, mode=mode)
+        except ValueError as ve:
+            logger.warning(f"Invalid playlist start: {ve}")
+            return StartGameResponse(success=False, error=str(ve))
 
         # Create game instance
         game_id = game_manager.create_game(

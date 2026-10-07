@@ -1,0 +1,34 @@
+{
+  "single": [
+    { "id": "003", "path": "games/source/-/003.led" },
+    { "id": "004", "path": "games/source/-/004.led" },
+    { "id": "010", "path": "games/source/-/010.led" },
+    { "id": "--/004", "path": "games/source/--/004.led" },
+    { "id": "--/006", "path": "games/source/--/006.led" },
+    { "id": "--/009", "path": "games/source/--/009.led" },
+    { "id": "--/010", "path": "games/source/--/010.led" },
+    { "id": "Shoot 1", "path": "games/source/---/Shoot 1.led" },
+    { "id": "005 Memory", "path": "games/source/---/005 Memory.led" },
+    { "id": "006 Memory", "path": "games/source/---/006 Memory.led" }
+  ],
+  "multi": [
+    { "id": "DK00013", "path": "games/source/---/---/DK00013.ledb" },
+    { "id": "DK00015", "path": "games/source/---/---/DK00015.ledb" },
+    { "id": "DK0010", "path": "games/source/---/---/DK0010.ledb" },
+    { "id": "DK005", "path": "games/source/---/---/DK005.ledb" },
+    { "id": "DK007", "path": "games/source/---/---/DK007.ledb" },
+    { "id": "ZZDK01", "path": "games/source/---/---/ZZDK01.ledb" }
+  ],
+  "group": [
+    { "id": "002", "path": "games/source_group/--/002.led" },
+    { "id": "004", "path": "games/source_group/--/004.led" },
+    { "id": "005", "path": "games/source_group/--/005.led" },
+    { "id": "006", "path": "games/source_group/--/006.led" },
+    { "id": "007", "path": "games/source_group/--/007.led" },
+    { "id": "008", "path": "games/source_group/--/008.led" },
+    { "id": "009", "path": "games/source_group/--/009.led" },
+    { "id": "010", "path": "games/source_group/--/010.led" },
+    { "id": "011", "path": "games/source_group/--/011.led" },
+    { "id": "012", "path": "games/source/--/012.led" }
+  ]
+}

@@ -3,8 +3,8 @@ import { useMemo, useState } from 'react'
 import VideoBackground from '../components/VideoBackground'
 import {
   HOW_TO_BULLETS,
-  QUICK_PLAY_LEVELS,
-  TEAM_BATTLE_LEVELS,
+  playlistForMode,
+  playlistEntryId,
 } from '../levelPlaylists'
 
 const MODES = [
@@ -35,13 +35,14 @@ const MODES = [
  * Setup = Mode + Level on one screen (mock Screen 2 / our first screen).
  * Tournament: no level pick — playlist is fixed.
  */
-export default function SetupScreen({ game = 'grid', onConfirm }) {
+export default function SetupScreen({ game = 'grid', playlists = null, onConfirm }) {
   const [mode, setMode] = useState('single')
   const [selectedIndex, setSelectedIndex] = useState(0)
 
   const isTournament = mode === 'group'
   const isTeam = mode === 'multi'
-  const ids = isTeam ? TEAM_BATTLE_LEVELS : QUICK_PLAY_LEVELS
+  const entries = playlistForMode(isTournament ? 'group' : mode, playlists)
+  const ids = entries.map(playlistEntryId)
   const modeMeta = MODES.find((m) => m.id === mode) || MODES[0]
 
   const bullets = useMemo(() => {
@@ -122,7 +123,7 @@ export default function SetupScreen({ game = 'grid', onConfirm }) {
               <div className="level-grid" role="listbox" aria-label="Levels">
                 {ids.map((id, i) => (
                   <button
-                    key={id}
+                    key={`${mode}-${i}`}
                     type="button"
                     role="option"
                     aria-selected={selectedIndex === i}

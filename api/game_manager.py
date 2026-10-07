@@ -12,7 +12,8 @@ import sys
 import math
 import json
 import shelve as _shelve
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Dict, Optional, Any
 from loguru import logger
 from .config import (
     GAME_TIMEOUT_SECONDS,
@@ -454,6 +455,124 @@ def _build_group_level_sequence(start_level=None):
     for j in range(ti + 1, len(chain)):
         seq.extend(chain[j][1])
     return seq
+
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_MODE_PLAYLISTS_JSON = _REPO_ROOT / "api" / "mode_playlists.json"
+_mode_playlists_cache: Optional[Dict[str, Any]] = None
+
+
+def _load_mode_playlists() -> Dict[str, Any]:
+    """Read api/mode_playlists.json (cached). Empty dict if missing."""
+    global _mode_playlists_cache
+    if _mode_playlists_cache is not None:
+        return _mode_playlists_cache
+    if not _MODE_PLAYLISTS_JSON.is_file():
+        _mode_playlists_cache = {}
+        return _mode_playlists_cache
+    try:
+        with open(_MODE_PLAYLISTS_JSON, encoding="utf-8") as f:
+            _mode_playlists_cache = json.load(f)
+    except Exception as e:
+        logger.warning(f"Could not load mode playlists: {e}")
+        _mode_playlists_cache = {}
+    return _mode_playlists_cache
+
+
+def get_mode_playlists() -> Dict[str, Any]:
+    """Public accessor for GET /playlists."""
+    return _load_mode_playlists()
+
+
+def _playlist_entry_abs_path(entry: dict) -> Optional[str]:
+    rel = entry.get("path")
+    if not rel:
+        return None
+    return str((_REPO_ROOT / rel).resolve())
+
+
+def _playlists_configured() -> bool:
+    data = _load_mode_playlists()
+    return bool(data.get("single") or data.get("multi") or data.get("group"))
+
+
+def _playlist_mode_key_for_level(level_id, game_mode: Optional[str]) -> str:
+    if (game_mode or "").strip().lower() == "group":
+        return "group"
+    level_str = str(level_id or "").strip()
+    data = _load_mode_playlists()
+    multi_ids = {e.get("id") for e in (data.get("multi") or [])}
+    if level_str in multi_ids:
+        return "multi"
+    return "single"
+
+
+def _build_playlist_sequence(mode_key: str, start_id: str) -> list:
+    """Ordered absolute paths: full group list or slice from start_id (exact id match)."""
+    data = _load_mode_playlists()
+    entries = data.get(mode_key) or []
+    if not entries:
+        raise ValueError(f"No playlist configured for mode '{mode_key}'")
+
+    if mode_key == "group":
+        start_idx = 0
+    else:
+        sid = str(start_id or "").strip()
+        start_idx = None
+        for i, entry in enumerate(entries):
+            if entry.get("id") == sid:
+                start_idx = i
+                break
+        if start_idx is None:
+            raise ValueError(
+                f"Unknown playlist start id '{start_id}' for mode '{mode_key}'"
+            )
+
+    seq = []
+    for entry in entries[start_idx:]:
+        p = _playlist_entry_abs_path(entry)
+        if not p or not os.path.isfile(p):
+            logger.warning(
+                f"Skipping missing playlist file id={entry.get('id')}: {p}"
+            )
+            continue
+        seq.append(p)
+    if not seq:
+        raise ValueError(
+            f"Playlist slice empty for mode '{mode_key}' start '{start_id}'"
+        )
+    return seq
+
+
+def validate_playlist_start(level, mode: Optional[str] = None) -> None:
+    """Raise ValueError if start level is not in the mode playlist."""
+    if not _playlists_configured():
+        return
+    if (mode or "").strip().lower() == "group":
+        _build_playlist_sequence("group", "auto")
+        return
+    mode_key = _playlist_mode_key_for_level(level, mode)
+    _build_playlist_sequence(mode_key, level)
+
+
+def _multiplayer_path_for_level(level_id) -> Optional[str]:
+    """Resolve .ledb path for eager multiplayer flag (Grid TB under ---/---/)."""
+    level_str = str(level_id or "").strip()
+    data = _load_mode_playlists()
+    for entry in data.get("multi") or []:
+        if entry.get("id") == level_str:
+            p = _playlist_entry_abs_path(entry)
+            if p and os.path.isfile(p) and p.lower().endswith(".ledb"):
+                return p
+    nested = os.path.join(
+        str(GAMES_ROOT), "source", "---", "---", f"{level_str}.ledb"
+    )
+    if os.path.isfile(nested):
+        return nested
+    legacy = os.path.join(str(GAMES_ROOT), "source", "----", f"{level_str}.ledb")
+    if os.path.isfile(legacy):
+        return legacy
+    return None
 
 
 def _load_level_candidates(path):
@@ -1570,13 +1689,12 @@ class GameManager:
                 # a press arrives before the shelve is fully loaded (~7s).
                 # Group mode is always 1P (.led under source_group/).
                 if game.mode != "group":
-                    _clone = str(GAMES_ROOT)
-                    _ledb = os.path.join(_clone, "source", "----", f"{level}.ledb")
-                    if os.path.exists(_ledb):
+                    _ledb = _multiplayer_path_for_level(level)
+                    if _ledb:
                         game.multiplayer = True
                         logger.info(
                             f"Game created: {game_id} multiplayer=True "
-                            f"(card={card_id}, level={level})"
+                            f"(card={card_id}, level={level}, path={_ledb})"
                         )
                     else:
                         logger.info(
@@ -1698,15 +1816,38 @@ class GameManager:
                 import datetime as _dt
                 game.update_state(started_at=_dt.datetime.now().isoformat(timespec="seconds"))
                 game._end_reason = None
-                if game.mode == "group":
-                    game.level_sequence = _build_group_level_sequence(game.level)
-                    # Sync display start level to first playlist entry
-                    if game.level_sequence:
-                        game.level = os.path.basename(
-                            game.level_sequence[0]
-                        ).rsplit(".", 1)[0]
+                if _playlists_configured():
+                    if game.mode == "group":
+                        game.level_sequence = _build_playlist_sequence(
+                            "group", "auto"
+                        )
+                    else:
+                        mode_key = _playlist_mode_key_for_level(
+                            game.level, game.mode
+                        )
+                        game.level_sequence = _build_playlist_sequence(
+                            mode_key, game.level
+                        )
+                elif os.environ.get("ALLOW_LEGACY_MARATHON") == "1":
+                    logger.warning(
+                        "mode_playlists.json missing/empty — legacy marathon "
+                        "(ALLOW_LEGACY_MARATHON=1)"
+                    )
+                    if game.mode == "group":
+                        game.level_sequence = _build_group_level_sequence(
+                            game.level
+                        )
+                    else:
+                        game.level_sequence = _build_level_sequence(game.level)
                 else:
-                    game.level_sequence = _build_level_sequence(game.level)
+                    raise ValueError(
+                        "mode_playlists.json missing or empty; set "
+                        "ALLOW_LEGACY_MARATHON=1 for legacy folder marathon"
+                    )
+                if game.level_sequence:
+                    game.level = os.path.basename(
+                        game.level_sequence[0]
+                    ).rsplit(".", 1)[0]
                 logger.info(
                     f"Session: {len(game.level_sequence)} levels from "
                     f"'{game.level}' mode={game.mode or 'single'} (5-min marathon)"

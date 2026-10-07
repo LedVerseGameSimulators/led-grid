@@ -35,6 +35,18 @@ export default function App() {
   const [gameConfig, setGameConfig] = useState(DEFAULT_CONFIG)
   const [result, setResult] = useState(null)
   const [booting, setBooting] = useState(true)
+  const [playlists, setPlaylists] = useState(null)
+
+  useEffect(() => {
+    fetch(`${API_URL}/playlists`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && (data.single || data.multi || data.group)) {
+          setPlaylists(data)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetch(`${API_URL}/active-game`)
@@ -64,6 +76,7 @@ export default function App() {
       playerCount,
       difficulty,
       playMode: playMode || prev.playMode,
+      playlists: playlists ?? prev.playlists,
       resumeGameId: undefined,
     }))
     setScreen(S.LOGIN)
@@ -121,7 +134,11 @@ export default function App() {
   return (
     <>
       {screen === S.SETUP && (
-        <SetupScreen game={gameConfig.game} onConfirm={handleSetup} />
+        <SetupScreen
+          game={gameConfig.game}
+          playlists={playlists}
+          onConfirm={handleSetup}
+        />
       )}
       {screen === S.LOGIN && (
         <LoginScreen

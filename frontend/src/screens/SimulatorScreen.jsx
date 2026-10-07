@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 
 import { API_URL, WS_BRIDGE_URL } from '../config'
-import { formatLevelLabel, TOURNAMENT_LEVEL_ORDER } from '../levelPlaylists'
+import { formatLevelLabel, tournamentFirstId } from '../levelPlaylists'
 
 function countdownDisplay(state) {
   if (!state || state.phase !== 'countdown') return null
@@ -136,13 +136,14 @@ export default function SimulatorScreen({ config, onGameEnd }) {
 
     // Player-facing level names (1, 2, 3…) for scores / RFID / leaderboards.
     // Real file stems are only used to load levels via start-game (config.level).
+    const pl = config.playlists
     const startStem =
       config.playMode === 'group' && (!config.level || config.level === 'auto')
-        ? TOURNAMENT_LEVEL_ORDER[0]
+        ? (tournamentFirstId(pl) || config.level || '')
         : (config.level || '')
     const endStem = st.current_level ?? startStem
-    const levelLabel = formatLevelLabel(config.playMode, startStem)
-    const endLevelLabel = formatLevelLabel(config.playMode, endStem)
+    const levelLabel = formatLevelLabel(config.playMode, startStem, pl)
+    const endLevelLabel = formatLevelLabel(config.playMode, endStem, pl)
     // Guests (no RFID): skip save-score only. Always stop the backend game
     // so BGM / session teardown still run.
     const hasRfidCard = Boolean(config.cardId && String(config.cardId).trim())
@@ -274,7 +275,11 @@ export default function SimulatorScreen({ config, onGameEnd }) {
   const p1Name = config.playerName || 'Player 1'
   const p2Name = config.playerName2 || 'Player 2'
   const currentLevelRaw = gameState?.current_level ?? config.level
-  const currentLevelLabel = formatLevelLabel(config.playMode, currentLevelRaw)
+  const currentLevelLabel = formatLevelLabel(
+    config.playMode,
+    currentLevelRaw,
+    config.playlists
+  )
   // Goal swatches: only when backend says Team Battle multiplayer (not FE playerCount alone)
   const showGoalSwatches = gameState?.multiplayer === true
   const p1SwatchCss = showGoalSwatches

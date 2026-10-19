@@ -17,6 +17,32 @@ _AUDIO_ROOT = GAMES_ROOT / "audio"
 _EFFECTS_ROOT = _AUDIO_ROOT / "effects"
 
 
+def _audio_file_usable(path: str) -> bool:
+    if not path or not Path(path).is_file():
+        return False
+    try:
+        with open(path, "rb") as fh:
+            if fh.read(8).startswith(b"version "):
+                logger.warning(
+                    f"Audio file is a Git LFS pointer — run git lfs pull: {path}"
+                )
+                return False
+    except OSError:
+        return False
+    return True
+
+
+def _release_music(mixer) -> None:
+    try:
+        mixer.music.stop()
+    except Exception:
+        pass
+    try:
+        mixer.music.unload()
+    except Exception:
+        pass
+
+
 class AudioManager:
     """Enqueue playback on a daemon thread; game thread never waits on mixer."""
 
@@ -34,7 +60,7 @@ class AudioManager:
             import pygame
 
             if not pygame.mixer.get_init():
-                pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+                pygame.mixer.init(frequency=22050, size=-16, channels=8, buffer=512)
             self._mixer = pygame.mixer
             self._ready = True
             self._thread = threading.Thread(
@@ -65,10 +91,7 @@ class AudioManager:
     def _stop_bgm_locked(self) -> None:
         if self._mixer is None:
             return
-        try:
-            self._mixer.music.stop()
-        except Exception:
-            pass
+        _release_music(self._mixer)
 
     def _start_bgm_locked(self, path: str) -> None:
         if self._mixer is None or not Path(path).is_file():
@@ -93,15 +116,24 @@ class AudioManager:
 
     def _play_transition_locked(self, path: str) -> None:
         self._stop_bgm_locked()
-        if self._mixer is None or not Path(path).is_file():
-            logger.warning(f"Transition stinger missing: {path}")
+        if self._mixer is None or not _audio_file_usable(path):
+            logger.warning(f"Transition stinger missing or unusable: {path}")
             return
         try:
+            ch = self._mixer.find_channel(True)
+            if ch:
+                ch.set_volume(1.0)
+                ch.play(self._mixer.Sound(path))
+                logger.info("Transition stinger played (sfx)")
+                return
+        except Exception as exc:
+            logger.warning(f"Transition stinger (sfx) failed: {exc}")
+        try:
             self._mixer.music.load(path)
-            self._mixer.music.play(0)
+            self._mixer.music.play(loops=0)
+            logger.info("Transition stinger played (music)")
         except Exception as exc:
             logger.warning(f"Transition stinger (music) failed: {exc}")
-            self._play_sfx_locked(path)
 
     def _resolve_stinger_path(self) -> Path | None:
         for p in (

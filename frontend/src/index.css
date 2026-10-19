@@ -1010,10 +1010,11 @@ input {
 }
 
 .hud-player--p2 .hud-score {
-  background: linear-gradient(135deg, var(--border-purple), var(--brand-pink));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  -webkit-text-fill-color: var(--border-purple);
+  color: var(--border-purple);
 }
 
 .hud-score-label {

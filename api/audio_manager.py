@@ -55,6 +55,8 @@ class AudioManager:
                     self._start_bgm_locked(path)
                 elif cmd == "play_sfx" and path:
                     self._play_sfx_locked(path)
+                elif cmd == "play_transition" and path:
+                    self._play_transition_locked(path)
             except Exception as exc:
                 logger.debug(f"AudioManager skip {cmd}: {exc}")
             finally:
@@ -89,6 +91,29 @@ class AudioManager:
         except Exception as exc:
             logger.debug(f"Could not play sound {path}: {exc}")
 
+    def _play_transition_locked(self, path: str) -> None:
+        self._stop_bgm_locked()
+        if self._mixer is None or not Path(path).is_file():
+            logger.warning(f"Transition stinger missing: {path}")
+            return
+        try:
+            self._mixer.music.load(path)
+            self._mixer.music.play(0)
+        except Exception as exc:
+            logger.warning(f"Transition stinger (music) failed: {exc}")
+            self._play_sfx_locked(path)
+
+    def _resolve_stinger_path(self) -> Path | None:
+        for p in (
+            _AUDIO_ROOT / "transition_stinger.mp3",
+            _AUDIO_ROOT / "transition_stinger.wav",
+            _EFFECTS_ROOT / "sfx_level_transition.mp3",
+            _EFFECTS_ROOT / "sfx_level_transition.wav",
+        ):
+            if p.is_file():
+                return p
+        return None
+
     def _enqueue(self, cmd: str, path: Optional[str] = None) -> None:
         if not self._ready:
             return
@@ -119,10 +144,17 @@ class AudioManager:
         self._enqueue("play_sfx", str(path))
 
     def play_stinger(self) -> None:
-        p = _AUDIO_ROOT / "transition_stinger.mp3"
-        if not p.is_file():
-            p = _AUDIO_ROOT / "transition_stinger.wav"
-        self.play_sfx(p)
+        self.init()
+        if not self._ready:
+            return
+        p = self._resolve_stinger_path()
+        if p is None:
+            logger.warning(
+                "Transition stinger missing (expected games/audio/transition_stinger "
+                "or games/audio/effects/sfx_level_transition)"
+            )
+            return
+        self._enqueue("play_transition", str(p))
 
     def play_countdown_tick(self) -> None:
         p = _EFFECTS_ROOT / "sfx_countdown_tick.mp3"

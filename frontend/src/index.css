@@ -1010,7 +1010,7 @@ input {
 }
 
 .hud-player--p2 .hud-score {
-  background: linear-gradient(135deg, var(--color-violet), var(--brand-pink));
+  background: linear-gradient(135deg, var(--border-purple), var(--brand-pink));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

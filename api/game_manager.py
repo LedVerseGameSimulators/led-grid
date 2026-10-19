@@ -2248,6 +2248,8 @@ class GameManager:
                 def _finish_session(*, skip_clear_hold=False):
                     game.begin_level_transition()
                     if game.running and not skip_clear_hold:
+                        audio.stop_bgm()
+                        audio.play_stinger()
                         run_effect_led(
                             clear_led,
                             game=game,
@@ -2260,7 +2262,6 @@ class GameManager:
                             stop_flag=lambda: not game.running,
                             audio=audio,
                         )
-                        audio.play_stinger()
                     game.update_state(
                         phase="session_end",
                         accepting_input=False,
@@ -2361,6 +2362,7 @@ class GameManager:
                             break
 
                         if game._restart_level:
+                            audio.play_stinger()
                             run_effect_led(
                                 fail_led,
                                 game=game,
@@ -2373,12 +2375,12 @@ class GameManager:
                                 stop_flag=lambda: not game.running,
                                 audio=audio,
                             )
-                            audio.play_stinger()
                             logger.info(f"↻ Life restart pending: level={lvl_id}, score={game.score}")
                             continue
 
                         if game._level_cleared:
                             game.levels_cleared += 1
+                            audio.play_stinger()
                             run_effect_led(
                                 clear_led,
                                 game=game,
@@ -2391,7 +2393,6 @@ class GameManager:
                                 stop_flag=lambda: not game.running,
                                 audio=audio,
                             )
-                            audio.play_stinger()
                             logger.info(f"✓ Level {lvl_id} cleared "
                                         f"(total cleared={game.levels_cleared})")
                             if lvl_path == game.level_sequence[-1]:

@@ -94,6 +94,7 @@ def run_effect_led(
         return
 
     last_digit = {"v": None}
+    stinger_sent = {"v": False}
 
     def _setup(_dg, _go):
         pass
@@ -107,6 +108,15 @@ def run_effect_led(
                 return False
             if total_pass >= board_time:
                 return False
+
+            if (
+                effect_name in (_PHASE_CLEAR, _PHASE_FAIL)
+                and audio is not None
+                and total_pass < 0.05
+                and not stinger_sent["v"]
+            ):
+                audio.play_stinger()
+                stinger_sent["v"] = True
 
             digit = _countdown_digit(dgroup, total_pass)
             if phase == _PHASE_COUNTDOWN and digit != last_digit["v"]:

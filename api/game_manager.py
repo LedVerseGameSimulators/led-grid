@@ -2249,7 +2249,6 @@ class GameManager:
                     game.begin_level_transition()
                     if game.running and not skip_clear_hold:
                         audio.stop_bgm()
-                        audio.play_stinger()
                         run_effect_led(
                             clear_led,
                             game=game,
@@ -2362,7 +2361,6 @@ class GameManager:
                             break
 
                         if game._restart_level:
-                            audio.play_stinger()
                             run_effect_led(
                                 fail_led,
                                 game=game,
@@ -2380,7 +2378,6 @@ class GameManager:
 
                         if game._level_cleared:
                             game.levels_cleared += 1
-                            audio.play_stinger()
                             run_effect_led(
                                 clear_led,
                                 game=game,

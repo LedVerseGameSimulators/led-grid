@@ -135,7 +135,12 @@ class AudioManager:
         except Exception as exc:
             logger.warning(f"Transition stinger (music) failed: {exc}")
 
-    def _resolve_stinger_path(self) -> Path | None:
+    def _resolve_stinger_path(self, phase: str | None = None) -> Path | None:
+        if phase in ("level_clear", "level_fail"):
+            for ext in ("mp3", "wav"):
+                cand = _AUDIO_ROOT / f"{phase}.{ext}"
+                if cand.is_file():
+                    return cand
         for p in (
             _AUDIO_ROOT / "transition_stinger.mp3",
             _AUDIO_ROOT / "transition_stinger.wav",
@@ -175,11 +180,11 @@ class AudioManager:
             return
         self._enqueue("play_sfx", str(path))
 
-    def play_stinger(self) -> None:
+    def play_stinger(self, phase: str | None = None) -> None:
         self.init()
         if not self._ready:
             return
-        p = self._resolve_stinger_path()
+        p = self._resolve_stinger_path(phase)
         if p is None:
             logger.warning(
                 "Transition stinger missing (expected games/audio/transition_stinger "

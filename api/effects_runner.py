@@ -115,7 +115,7 @@ def run_effect_led(
                 and total_pass < 0.05
                 and not stinger_sent["v"]
             ):
-                audio.play_stinger()
+                audio.play_stinger(effect_name)
                 stinger_sent["v"] = True
 
             digit = _countdown_digit(dgroup, total_pass)

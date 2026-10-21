@@ -2,10 +2,29 @@ import { useState, useRef, useEffect } from 'react'
 
 import VideoBackground from '../components/VideoBackground'
 import { randomGuestNames } from '../guestNames'
-import { RFID_API_URL } from '../config'
+import { validateRfidCard } from '../rfidPlayFacts'
 
 function normalizeCardId(raw) {
   return String(raw ?? '').replace(/[\r\n]/g, '').trim()
+}
+
+function canonicalCardId(scanned, validateData) {
+  const fromApi =
+    validateData?.card_id != null ? normalizeCardId(validateData.card_id) : ''
+  return fromApi || normalizeCardId(scanned)
+}
+
+function cardsEqualCaseInsensitive(a, b) {
+  const na = normalizeCardId(a).toLowerCase()
+  const nb = normalizeCardId(b).toLowerCase()
+  return Boolean(na && nb && na === nb)
+}
+
+function teamBattleSameGroup(p1Validate, p2Validate) {
+  const g1 = p1Validate?.group_id
+  const g2 = p2Validate?.group_id
+  if (g1 == null || g2 == null) return false
+  return g1 === g2
 }
 
 function validationError(data) {
@@ -15,13 +34,6 @@ function validationError(data) {
   if (data.reason === 'expired') return 'Session expired. Visit reception.'
   if (data.reason === 'no_active_session') return 'No active session. Visit reception.'
   return 'Card not recognized.'
-}
-
-async function validateRfidCard(cardId) {
-  const res = await fetch(
-    `${RFID_API_URL}/validate?card_id=${encodeURIComponent(cardId)}`
-  )
-  return res.json()
 }
 
 export default function LoginScreen({ gameTitle = 'Mega Grid', onLogin, playerCount = 1, onBack }) {
@@ -76,10 +88,10 @@ export default function LoginScreen({ gameTitle = 'Mega Grid', onLogin, playerCo
     else setCard2(cardId)
 
     if (playerCount === 2) {
-      const other = which === 1
-        ? normalizeCardId(card2Ref.current?.value || card2)
-        : normalizeCardId(card1Ref.current?.value || card1)
-      if (other && cardId === other) {
+      const otherRaw = which === 1
+        ? (validatedCard2 || card2Ref.current?.value || card2)
+        : (validatedCard1 || card1Ref.current?.value || card1)
+      if (cardsEqualCaseInsensitive(cardId, otherRaw)) {
         setError('Each player needs a different card')
         if (which === 1) {
           setP1Info(null)
@@ -98,13 +110,30 @@ export default function LoginScreen({ gameTitle = 'Mega Grid', onLogin, playerCo
     try {
       const data = await validateRfidCard(cardId)
       if (data.valid) {
+        const canonical = canonicalCardId(cardId, data)
+        if (which === 2 && playerCount === 2 && p1Info?.valid) {
+          if (cardsEqualCaseInsensitive(canonical, validatedCard1 || p1Info.card_id)) {
+            setP2Info(null)
+            setValidatedCard2('')
+            setError('Each player needs a different card')
+            return
+          }
+          if (teamBattleSameGroup(p1Info, data)) {
+            setP2Info(null)
+            setValidatedCard2('')
+            setError('Team Battle needs two different groups — scan the other team’s leader card')
+            return
+          }
+        }
         ok = true
         if (which === 1) {
           setP1Info(data)
-          setValidatedCard1(cardId)
+          setValidatedCard1(canonical)
+          setCard1(canonical)
         } else {
           setP2Info(data)
-          setValidatedCard2(cardId)
+          setValidatedCard2(canonical)
+          setCard2(canonical)
         }
       } else {
         if (which === 1) {
@@ -151,8 +180,12 @@ export default function LoginScreen({ gameTitle = 'Mega Grid', onLogin, playerCo
 
   const handleStartGame = () => {
     if (!canStart || validating) return
-    if (playerCount === 2 && validatedCard1 === validatedCard2) {
+    if (playerCount === 2 && cardsEqualCaseInsensitive(validatedCard1, validatedCard2)) {
       setError('Each player needs a different card')
+      return
+    }
+    if (playerCount === 2 && teamBattleSameGroup(p1Info, p2Info)) {
+      setError('Team Battle needs two different groups — scan the other team’s leader card')
       return
     }
     onLogin(
@@ -161,7 +194,9 @@ export default function LoginScreen({ gameTitle = 'Mega Grid', onLogin, playerCo
       p1Info.player_name || '',
       p2Info?.player_name || '',
       p1Info.minutes_remaining ?? null,
-      p2Info?.minutes_remaining ?? null
+      p2Info?.minutes_remaining ?? null,
+      p1Info,
+      playerCount === 2 ? p2Info : null
     )
   }
 

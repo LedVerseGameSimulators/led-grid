@@ -242,26 +242,11 @@ async def get_result(game_id: str) -> GameResult:
 # ============= LOGOUT ENDPOINT =============
 @app.post("/logout")
 async def logout(request: LogoutRequest) -> LogoutResponse:
-    """
-    End game session and record score.
-    """
+    """Stop the game session (teardown only). Scores are written via POST /save-score."""
     logger.info(f"Logout request: game_id={request.game_id}, card={request.card_id}")
 
     try:
         result = game_manager.stop_game(request.game_id)
-
-        if result["success"]:
-            # TODO: logout also calls record_game_score (sparse payload) — double-writes
-            # when FE already POSTed /save-score. Prefer FE guest skip + RFID-card-only
-            # save as the primary fix for guests; clean up logout score write later.
-            score_data = {
-                "card_id": request.card_id,
-                "game_id": request.game_id,
-                "score": result["state"].get("score", 0),
-                "timestamp": datetime.datetime.now().isoformat()
-            }
-            db.record_game_score(score_data)
-
         return LogoutResponse(success=result["success"])
 
     except Exception as e:
@@ -283,7 +268,7 @@ async def health():
 
 @app.get("/scores")
 async def get_scores(since: str = "2000-01-01T00:00:00"):
-    """Return scores recorded after `since` timestamp. Used by RFID poller."""
+    """Return scores with ts >= since (inclusive). Used by RFID poller."""
     try:
         rows = db.get_scores_since(since)
         return {"success": True, "game": GAME_NAME, "scores": rows}
@@ -448,6 +433,15 @@ async def save_score(payload: dict):
             "levels_cleared": payload.get("levels_cleared", 0),
             "difficulty": payload.get("difficulty", ""),
             "started_at": payload.get("started_at", ""),
+            "play_mode": payload.get("play_mode"),
+            "session_id": payload.get("session_id"),
+            "group_id": payload.get("group_id"),
+            "roster_size_at_play": payload.get("roster_size_at_play"),
+            "roster_player_ids": payload.get("roster_player_ids"),
+            "session_id2": payload.get("session_id2"),
+            "group_id2": payload.get("group_id2"),
+            "roster_size_at_play2": payload.get("roster_size_at_play2"),
+            "roster_player_ids2": payload.get("roster_player_ids2"),
         })
         return {"success": ok}
     except Exception as e:

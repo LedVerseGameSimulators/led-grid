@@ -1,6 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 
 import { API_URL, WS_BRIDGE_URL } from '../config'
+import { playModeToRfidPlayMode, resolveStampAtSave } from '../rfidPlayFacts'
+import {
+  persistGameResumeContext,
+  clearGameResumeContext,
+} from '../gameResumeContext'
 import { formatLevelLabel, tournamentFirstId } from '../levelPlaylists'
 
 function countdownDisplay(state) {
@@ -88,6 +93,7 @@ export default function SimulatorScreen({ config, onGameEnd }) {
     if (config.resumeGameId) {
       setGameId(config.resumeGameId)
       gameIdRef.current = config.resumeGameId
+      persistGameResumeContext(config.resumeGameId, config)
       setLoading(false)
       return
     }
@@ -107,6 +113,7 @@ export default function SimulatorScreen({ config, onGameEnd }) {
         if (data.success) {
           setGameId(data.game_id)
           gameIdRef.current = data.game_id
+          persistGameResumeContext(data.game_id, config)
           setLoading(false)
         } else {
           setError(data.error || 'Failed to start game')
@@ -148,33 +155,57 @@ export default function SimulatorScreen({ config, onGameEnd }) {
     // so BGM / session teardown still run.
     const hasRfidCard = Boolean(config.cardId && String(config.cardId).trim())
 
+    if (id) {
+      clearGameResumeContext(id)
+    }
     try {
       if (hasRfidCard) {
+        const card2 = config.cardId2 && String(config.cardId2).trim()
+          ? String(config.cardId2).trim()
+          : null
+        const [slot1, slot2] = await Promise.all([
+          resolveStampAtSave(config.cardId, config.rfidValidate1),
+          card2
+            ? resolveStampAtSave(card2, config.rfidValidate2)
+            : Promise.resolve(null),
+        ])
+        const saveBody = {
+          card_id: config.cardId,
+          card_id2: card2,
+          play_mode: playModeToRfidPlayMode(config.playMode),
+          session_id: slot1.session_id,
+          group_id: slot1.group_id,
+          roster_size_at_play: slot1.roster_size_at_play,
+          roster_player_ids: slot1.roster_player_ids,
+          level: levelLabel,
+          end_level: endLevelLabel,
+          level_file: startStem,
+          end_level_file: endStem,
+          score: finalScore,
+          score2: finalScore2,
+          final_score: st.final_score ?? finalScore,
+          final_score2: st.final_score2 ?? finalScore2,
+          multiplayer: finalMultiplayer,
+          life: finalLife,
+          lives_start: st.max_life ?? 0,
+          result: st.result ?? null,
+          time_used: finalTime,
+          levels_cleared: st.levels_cleared ?? 0,
+          difficulty: config.difficulty ?? '',
+          started_at: st.started_at ?? '',
+          player_name: config.playerName || '',
+          player_name2: config.playerName2 || '',
+        }
+        if (card2 && slot2) {
+          saveBody.session_id2 = slot2.session_id
+          saveBody.group_id2 = slot2.group_id
+          saveBody.roster_size_at_play2 = slot2.roster_size_at_play
+          saveBody.roster_player_ids2 = slot2.roster_player_ids
+        }
         await fetch(`${API_URL}/save-score`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            card_id: config.cardId,
-            card_id2: config.cardId2 || null,
-            level: levelLabel,
-            end_level: endLevelLabel,
-            level_file: startStem,
-            end_level_file: endStem,
-            score: finalScore,
-            score2: finalScore2,
-            final_score: st.final_score ?? finalScore,
-            final_score2: st.final_score2 ?? finalScore2,
-            multiplayer: finalMultiplayer,
-            life: finalLife,
-            lives_start: st.max_life ?? 0,
-            result: st.result ?? null,
-            time_used: finalTime,
-            levels_cleared: st.levels_cleared ?? 0,
-            difficulty: config.difficulty ?? '',
-            started_at: st.started_at ?? '',
-            player_name: config.playerName || '',
-            player_name2: config.playerName2 || '',
-          })
+          body: JSON.stringify(saveBody),
         })
       }
       // Always stop game (BGM + floor blank) — guests too

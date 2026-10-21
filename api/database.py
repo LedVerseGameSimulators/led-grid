@@ -8,6 +8,7 @@ import os
 import sqlite3
 import threading
 import datetime
+import json
 
 # Try to import db_operation from game; optional for headless testing
 DBOperation = None
@@ -67,7 +68,14 @@ class Database:
                                  ("final_score", "REAL"), ("final_score2", "REAL"),
                                  ("levels_cleared", "INTEGER"), ("end_level", "TEXT"),
                                  ("level_file", "TEXT"), ("end_level_file", "TEXT"),
-                                 ("difficulty", "TEXT"), ("started_at", "TEXT")):
+                                 ("difficulty", "TEXT"), ("started_at", "TEXT"),
+                                 ("play_mode", "TEXT"), ("session_id", "INTEGER"),
+                                 ("group_id", "INTEGER"),
+                                 ("roster_size_at_play", "INTEGER"),
+                                 ("roster_player_ids", "TEXT"),
+                                 ("session_id2", "INTEGER"), ("group_id2", "INTEGER"),
+                                 ("roster_size_at_play2", "INTEGER"),
+                                 ("roster_player_ids2", "TEXT")):
                     try:
                         con.execute(f"ALTER TABLE hex_scores ADD COLUMN {col} {typ}")
                     except Exception:
@@ -104,6 +112,34 @@ class Database:
             logger.error(f"Error getting player by ID: {e}")
             return None
 
+    @staticmethod
+    def _int_or_none(val):
+        if val is None or val == "":
+            return None
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _roster_ids_json(val):
+        """Persist roster_player_ids as JSON text; None if empty/unset."""
+        if val is None:
+            return None
+        if isinstance(val, str):
+            return val
+        if isinstance(val, list):
+            out = []
+            for x in val:
+                if x is None:
+                    continue
+                try:
+                    out.append(int(x))
+                except (TypeError, ValueError):
+                    pass
+            return json.dumps(out) if out else None
+        return None
+
     # ===== SCORE RECORDING =====
     def record_game_score(self, game_info: dict):
         """Record a finished game to hex_scores.
@@ -115,8 +151,11 @@ class Database:
                     "INSERT INTO hex_scores (card_id, card_id2, multiplayer, level, "
                     "end_level, level_file, end_level_file, score, score2, "
                     "final_score, final_score2, life, lives_start, result, time_used, "
-                    "levels_cleared, difficulty, started_at, ts, game) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "levels_cleared, difficulty, started_at, ts, game, "
+                    "play_mode, session_id, group_id, roster_size_at_play, "
+                    "roster_player_ids, session_id2, group_id2, "
+                    "roster_size_at_play2, roster_player_ids2) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         str(game_info.get("card_id", "")),
                         str(game_info.get("card_id2", "") or ""),
@@ -138,6 +177,15 @@ class Database:
                         str(game_info.get("started_at", "") or ""),
                         datetime.datetime.now().isoformat(timespec="seconds"),
                         GAME_NAME,
+                        str(game_info.get("play_mode", "") or "") or None,
+                        self._int_or_none(game_info.get("session_id")),
+                        self._int_or_none(game_info.get("group_id")),
+                        self._int_or_none(game_info.get("roster_size_at_play")),
+                        self._roster_ids_json(game_info.get("roster_player_ids")),
+                        self._int_or_none(game_info.get("session_id2")),
+                        self._int_or_none(game_info.get("group_id2")),
+                        self._int_or_none(game_info.get("roster_size_at_play2")),
+                        self._roster_ids_json(game_info.get("roster_player_ids2")),
                     ),
                 )
                 con.commit()
@@ -210,8 +258,11 @@ class Database:
                     "SELECT card_id, card_id2, multiplayer, level, end_level, "
                     "level_file, end_level_file, "
                     "score, score2, final_score, final_score2, life, lives_start, "
-                    "result, time_used, levels_cleared, difficulty, started_at, ts, game "
-                    "FROM hex_scores WHERE ts > ? AND game = ? ORDER BY ts ASC",
+                    "result, time_used, levels_cleared, difficulty, started_at, ts, game, "
+                    "play_mode, session_id, group_id, roster_size_at_play, "
+                    "roster_player_ids, session_id2, group_id2, "
+                    "roster_size_at_play2, roster_player_ids2 "
+                    "FROM hex_scores WHERE ts >= ? AND game = ? ORDER BY ts ASC",
                     (since, GAME_NAME),
                 ).fetchall()
                 con.close()
@@ -220,7 +271,10 @@ class Database:
                  "level_file", "end_level_file",
                  "score", "score2", "final_score", "final_score2", "life",
                  "lives_start", "result", "time_used", "levels_cleared",
-                 "difficulty", "started_at", "ts", "game"], r
+                 "difficulty", "started_at", "ts", "game",
+                 "play_mode", "session_id", "group_id", "roster_size_at_play",
+                 "roster_player_ids", "session_id2", "group_id2",
+                 "roster_size_at_play2", "roster_player_ids2"], r
             )) for r in rows]
         except Exception as e:
             logger.error(f"Error getting scores since {since}: {e}")

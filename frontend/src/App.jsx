@@ -6,6 +6,7 @@ import SimulatorScreen from './screens/SimulatorScreen'
 import ResultScreen    from './screens/ResultScreen'
 
 import { API_URL } from './config'
+import { loadGameResumeContext } from './gameResumeContext'
 import VideoBackground from './components/VideoBackground'
 
 const S = {
@@ -28,6 +29,8 @@ const DEFAULT_CONFIG = {
   playerName2: '',
   minutesRemaining: null,
   minutesRemaining2: null,
+  rfidValidate1: null,
+  rfidValidate2: null,
 }
 
 export default function App() {
@@ -53,12 +56,29 @@ export default function App() {
       .then((r) => r.json())
       .then((d) => {
         if (d.success) {
+          const saved = loadGameResumeContext(d.game_id)
+          const mergeResume =
+            saved && saved.game_id === d.game_id
+              ? {
+                  playMode: saved.playMode ?? undefined,
+                  playerCount: saved.playerCount ?? undefined,
+                  cardId: saved.cardId ?? d.card_id,
+                  cardId2: saved.cardId2 ?? undefined,
+                  rfidValidate1: saved.rfidValidate1 ?? undefined,
+                  rfidValidate2: saved.rfidValidate2 ?? undefined,
+                  playerName: saved.playerName ?? undefined,
+                  playerName2: saved.playerName2 ?? undefined,
+                  minutesRemaining: saved.minutesRemaining ?? undefined,
+                  minutesRemaining2: saved.minutesRemaining2 ?? undefined,
+                }
+              : {}
           setGameConfig((prev) => ({
             ...prev,
-            cardId: d.card_id,
+            cardId: mergeResume.cardId ?? d.card_id,
             level: d.level,
             difficulty: d.difficulty,
             resumeGameId: d.game_id,
+            ...mergeResume,
           }))
           setScreen(S.SIMULATOR)
         }
@@ -88,7 +108,9 @@ export default function App() {
     playerName = '',
     playerName2 = '',
     minutesRemaining = null,
-    minutesRemaining2 = null
+    minutesRemaining2 = null,
+    rfidValidate1 = null,
+    rfidValidate2 = null
   ) => {
     setGameConfig((prev) => ({
       ...prev,
@@ -98,6 +120,8 @@ export default function App() {
       playerName2: playerName2 || '',
       minutesRemaining,
       minutesRemaining2,
+      rfidValidate1: rfidValidate1 || null,
+      rfidValidate2: rfidValidate2 || null,
     }))
     setScreen(S.COUNTDOWN)
   }

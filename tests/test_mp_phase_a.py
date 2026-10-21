@@ -15,11 +15,12 @@ import pytest
 from api import game_manager
 from api.level_scaler import prepare_level_for_platform
 from model.setting import Color, Setting
-
+from tests.playlist_test_helpers import patch_playlist_session
 
 ROOT = Path(__file__).resolve().parents[1]
 LEDB_2P = ROOT / "games" / "source" / "----" / "01.ledb"
 FLOOR_LIGHT = Setting.FLOOR_LIGHT
+MP_PLAYLIST_START = "DK00013"
 
 
 def _rings(rgb):
@@ -164,15 +165,19 @@ def test_mp_session_publishes_goal_colors(mp_client, monkeypatch):
     client, _mgr = mp_client
     assert LEDB_2P.is_file()
 
-    monkeypatch.setattr(
-        game_manager,
-        "_build_level_sequence",
-        lambda _start: [str(LEDB_2P)],
+    patch_playlist_session(
+        monkeypatch,
+        [LEDB_2P],
+        start_level=MP_PLAYLIST_START,
     )
 
     resp = client.post(
         "/start-game",
-        json={"card_id": "mp-phase-a", "level": "01", "difficulty": "normal"},
+        json={
+            "card_id": "mp-phase-a",
+            "level": MP_PLAYLIST_START,
+            "difficulty": "normal",
+        },
     )
     body = resp.json()
     assert body.get("success"), body

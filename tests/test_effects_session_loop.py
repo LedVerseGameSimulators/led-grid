@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.playlist_test_helpers import patch_playlist_session
+
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_EFFECTS = ROOT / "tests" / "fixtures" / "effects"
 FIXTURE_LEVELS = ROOT / "tests" / "fixtures" / "levels"
@@ -57,12 +59,7 @@ def _wait_playing(client, game_id, *, timeout=15.0):
 def _start(client, monkeypatch, *, levels, game_time_sec=300.0, max_life=20):
     import api.game_manager as gm
 
-    seq = [str(p) for p in levels]
-
-    def _fake_sequence(_start_level):
-        return seq
-
-    monkeypatch.setattr(gm, "_build_level_sequence", _fake_sequence)
+    start_level = patch_playlist_session(monkeypatch, levels, start_level="003")
 
     real = gm.load_real_settings()
 
@@ -76,7 +73,7 @@ def _start(client, monkeypatch, *, levels, game_time_sec=300.0, max_life=20):
 
     resp = client.post(
         "/start-game",
-        json={"card_id": "test-card", "level": "001", "difficulty": "easy"},
+        json={"card_id": "test-card", "level": start_level, "difficulty": "easy"},
     )
     body = resp.json()
     assert body.get("success"), body

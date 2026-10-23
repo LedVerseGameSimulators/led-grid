@@ -91,25 +91,41 @@ def test_attempt_preparation_scales_raw_archive_before_runtime(monkeypatch):
 
 
 def test_attempt_preparation_retains_start_area_zero_floor_groups():
-    groups, game = _load("games/source/-/008.led")
-    expected = {
-        name
-        for name, group in groups.items()
-        if getattr(group, "type", None) == FLOOR_LIGHT
-        and getattr(group, "start_area", None) == 0
+    from types import SimpleNamespace
+
+    game = SimpleNamespace(
+        name="start-area-zero",
+        row=12,
+        col=24,
+        zone_row_from=0,
+        zone_row_to=12,
+        zone_col_from=8,
+        zone_col_to=24,
+        corner_line_start=8,
+        wall_light=False,
+        screen=False,
+    )
+    groups = {
+        "decor": SimpleNamespace(
+            name="decor",
+            type=FLOOR_LIGHT,
+            start_member={(4, 10)},
+            activity_area=[(0, 12), (8, 24)],
+            scale="both",
+            start_area=0,
+        )
     }
-    assert expected
 
     prepared, _ = game_manager._prepare_level_attempt(
         groups,
         game,
         led_table=game_manager.HeadlessLedTable(100, 16, 26),
         settings={"wall_light": False, "screen_light": False},
-        level_id="008",
+        level_id="synthetic",
     )
 
-    assert expected <= set(prepared)
-    assert all(prepared[name].start_area == 0 for name in expected)
+    assert "decor" in prepared
+    assert prepared["decor"].start_area == 0
 
 
 @pytest.mark.parametrize(

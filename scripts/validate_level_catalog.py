@@ -83,11 +83,23 @@ def discover_level_archives(source_root: Path) -> list[Path]:
     )
 
 
-def discover_main_gameplay_boards(path: Path) -> list[GameplayBoard]:
+def _is_parallel_wall_strip_board(identity: str) -> bool:
+    """Parallel wall-strip shelves are not played on Grid (A1 floor stretch only)."""
+    return "平行" in identity
+
+
+def discover_main_gameplay_boards(
+    path: Path, *, include_parallel_wall_strip: bool = True
+) -> list[GameplayBoard]:
     """Load every main board using the production deterministic archive reader."""
-    return [
+    boards = [
         GameplayBoard(identity, groups, game)
         for identity, groups, game in _load_level_boards(path)
+    ]
+    if include_parallel_wall_strip:
+        return boards
+    return [
+        board for board in boards if not _is_parallel_wall_strip_board(board.identity)
     ]
 
 
@@ -271,6 +283,7 @@ def _prepare_loaded(groups: dict[Any, Any], game: Any, rows: int, cols: int):
             target_cols=cols,
             enable_wall_light=False,
             enable_screen_light=False,
+            platform_corner_line_start=0,
         )
     except Exception as exc:
         raise CatalogValidationError(f"production preparation failed: {exc}") from exc
@@ -400,8 +413,8 @@ def validate_archive_boards(
     """Validate every deterministic main board in one archive twice."""
     path = Path(path)
     board_runs = [
-        discover_main_gameplay_boards(path),
-        discover_main_gameplay_boards(path),
+        discover_main_gameplay_boards(path, include_parallel_wall_strip=False),
+        discover_main_gameplay_boards(path, include_parallel_wall_strip=False),
     ]
     identities = [[board.identity for board in run] for run in board_runs]
     if not identities[0]:

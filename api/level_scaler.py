@@ -236,6 +236,61 @@ def _validate_linear_members(members, *, group_name, group_type):
             )
 
 
+def _strip_adapt_col_range(
+    col_from: int,
+    col_to: int,
+    *,
+    corner: int,
+    floor_source_cols: int,
+    target_cols: int,
+) -> tuple[int, int] | None:
+    """Map authored floor column bounds across a wall-strip offset onto the target."""
+    adapted_from = max(col_from, corner) - corner
+    adapted_to = col_to - corner
+    if adapted_from >= adapted_to:
+        return None
+    return scale_range(
+        adapted_from,
+        adapted_to,
+        source_size=floor_source_cols,
+        target_size=target_cols,
+    )
+
+
+def _strip_adapt_floor_members(
+    members: _Iterable[tuple[int, int]] | None,
+    *,
+    corner: int,
+    source_rows: int,
+    floor_source_cols: int,
+) -> set[tuple[int, int]] | None:
+    """Drop strip columns and shift floor cells left; None if all cells were in the strip."""
+    if members is None:
+        return set()
+    try:
+        raw = list(members)
+    except TypeError:
+        return set()
+    if not raw:
+        return set()
+    shifted = set()
+    for member in raw:
+        row = _integer(member[0], "strip-adapt member row")
+        col = _integer(member[1], "strip-adapt member col")
+        if col < corner:
+            continue
+        shifted_col = col - corner
+        if not (0 <= row < source_rows and 0 <= shifted_col < floor_source_cols):
+            raise ValueError(
+                f"strip-adapt member ({row}, {col}) is outside floor bounds "
+                f"{source_rows}x{floor_source_cols} after corner {corner}"
+            )
+        shifted.add((row, shifted_col))
+    if not shifted:
+        return None
+    return shifted
+
+
 def prepare_level_for_platform(
     groups: _Mapping[_Any, _Any],
     game: _Any,
@@ -244,6 +299,7 @@ def prepare_level_for_platform(
     target_cols: int,
     enable_wall_light: bool = True,
     enable_screen_light: bool = True,
+    platform_corner_line_start: int = 0,
 ) -> tuple[dict[_Any, _Any], _Any]:
     """Copy, validate, filter, and scale an authored level for one platform."""
     target_rows = _dimension(target_rows, "target_rows")
@@ -252,6 +308,14 @@ def prepare_level_for_platform(
         raise ValueError("enable_wall_light must be a boolean")
     if not isinstance(enable_screen_light, bool):
         raise ValueError("enable_screen_light must be a boolean")
+    platform_corner_line_start = _integer(
+        platform_corner_line_start, "platform_corner_line_start"
+    )
+    if platform_corner_line_start < 0:
+        raise ValueError(
+            "platform_corner_line_start must be non-negative, "
+            f"got {platform_corner_line_start}"
+        )
     if not hasattr(groups, "items"):
         raise ValueError(f"{_level_context(game)} groups must be a mapping")
 
@@ -280,10 +344,24 @@ def prepare_level_for_platform(
             )
         zone_values.append((start, stop))
 
+    level_corner = _integer(getattr(game, "corner_line_start", 0) or 0, "corner_line_start")
+    if level_corner < 0:
+        raise ValueError(f"{context} corner_line_start must be non-negative")
+    strip_adapt = level_corner > 0 and platform_corner_line_start == 0
+    floor_source_cols = source_cols
+    if strip_adapt:
+        if level_corner >= source_cols:
+            raise ValueError(
+                f"{context} corner_line_start {level_corner} must be less than col {source_cols}"
+            )
+        floor_source_cols = source_cols - level_corner
+
     try:
         prepared_game = _copy.deepcopy(game)
     except Exception as exc:
         raise ValueError(f"{context} deepcopy failed: {exc}") from exc
+    if strip_adapt:
+        prepared_game.corner_line_start = platform_corner_line_start
 
     prepared_groups = {}
     for key, original_group in groups.items():
@@ -310,24 +388,50 @@ def prepare_level_for_platform(
                 row_range, col_range = _validate_activity_area(
                     group.activity_area, group_name=group_name
                 )
-                group.activity_area = [
-                    scale_range(
-                        *row_range,
-                        source_size=source_rows,
-                        target_size=target_rows,
-                    ),
-                    scale_range(
+                scaled_row = scale_range(
+                    *row_range,
+                    source_size=source_rows,
+                    target_size=target_rows,
+                )
+                if strip_adapt and group_type == _FLOOR_LIGHT:
+                    scaled_col = _strip_adapt_col_range(
+                        col_range[0],
+                        col_range[1],
+                        corner=level_corner,
+                        floor_source_cols=floor_source_cols,
+                        target_cols=target_cols,
+                    )
+                    if scaled_col is None:
+                        continue
+                else:
+                    scaled_col = scale_range(
                         *col_range,
                         source_size=source_cols,
                         target_size=target_cols,
-                    ),
-                ]
+                    )
+                group.activity_area = [scaled_row, scaled_col]
 
             if group_type == _FLOOR_LIGHT:
+                member_source_cols = (
+                    floor_source_cols if strip_adapt else source_cols
+                )
+                raw_members = getattr(group, "start_member", None)
+                if strip_adapt:
+                    adapted_members = _strip_adapt_floor_members(
+                        raw_members,
+                        corner=level_corner,
+                        source_rows=source_rows,
+                        floor_source_cols=floor_source_cols,
+                    )
+                    if adapted_members is None:
+                        continue
+                    member_input = adapted_members
+                else:
+                    member_input = raw_members
                 group.start_member = scale_cells(
-                    getattr(group, "start_member", None),
+                    member_input,
                     source_rows=source_rows,
-                    source_cols=source_cols,
+                    source_cols=member_source_cols,
                     target_rows=target_rows,
                     target_cols=target_cols,
                     mode=getattr(group, "scale", None),
@@ -345,9 +449,18 @@ def prepare_level_for_platform(
     prepared_game.zone_row_from, prepared_game.zone_row_to = scale_range(
         *zone_values[0], source_size=source_rows, target_size=target_rows
     )
-    prepared_game.zone_col_from, prepared_game.zone_col_to = scale_range(
-        *zone_values[1], source_size=source_cols, target_size=target_cols
-    )
+    if strip_adapt:
+        zone_col_from, zone_col_to = zone_values[1]
+        prepared_game.zone_col_from, prepared_game.zone_col_to = scale_range(
+            max(zone_col_from, level_corner) - level_corner,
+            zone_col_to - level_corner,
+            source_size=floor_source_cols,
+            target_size=target_cols,
+        )
+    else:
+        prepared_game.zone_col_from, prepared_game.zone_col_to = scale_range(
+            *zone_values[1], source_size=source_cols, target_size=target_cols
+        )
     prepared_game.row = target_rows
     prepared_game.col = target_cols
     prepared_game.wall_light = enable_wall_light

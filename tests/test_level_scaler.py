@@ -29,23 +29,23 @@ REAL_LEVELS = (
 REAL_LEVEL_GOLDENS = {
     "games/source/-/009.led": (
         "蓝色",
-        25,
-        "e5816e10bc5b0a16763412b0ca1eb175a6b19631d9f333a0b643e169c954ca88",
+        39,
+        "274baa97d7799a11e0f47030e0a823ee5f8187add47d4707e7acb66a181f2657",
     ),
     "games/source/-/008.led": (
         "Group(1)",
-        48,
-        "80926a18fa66e664946f797bd140fb2326e23f0f93a804a947484363c70833a6",
+        64,
+        "46a47fa156f89bb4b6b053f629adfb52f25c71505f3acd5225d95a4e6fc01bc4",
     ),
     "games/source/-/001.led": (
         "灯组6",
-        32,
-        "b73ce0154ad9724a02f836322cd854eb5fed91f8bae30375a580a1d355198d10",
+        48,
+        "5d20650f8810f8b294ff3d32cb0316c50c563d33a0f64b9da269c5f159ed98a6",
     ),
     "games/source/--/011.led": (
         "蓝色",
-        47,
-        "e603c51a22b4e9667b84fe6c9fdfc7b379365fc1cd9ec06fd38ed024a7bd494e",
+        69,
+        "8af791e1b8c713526708d211581c71ac91a86164cc740228aa3e70f27502651c",
     ),
 }
 
@@ -406,10 +406,11 @@ def test_real_archives_prepare_to_16_by_26_with_valid_floor_cells(
     assert sum(
         len(getattr(group, "start_member", ()) or ()) for group in floor_groups
     ) > 0
-    for name in original_nonempty_floor:
-        assert name in prepared_groups
-        assert getattr(prepared_groups[name], "type", None) == FLOOR_LIGHT
-        assert getattr(prepared_groups[name], "start_member", None)
+    for name, group in prepared_groups.items():
+        if getattr(group, "type", None) != FLOOR_LIGHT:
+            continue
+        assert name in original_nonempty_floor
+        assert getattr(group, "start_member", None)
     for group in floor_groups:
         for row, col in getattr(group, "start_member", ()) or ():
             assert type(row) is int
@@ -422,24 +423,22 @@ def test_real_archives_prepare_to_16_by_26_with_valid_floor_cells(
     assert _coordinate_digest(golden_members) == golden_digest
 
 
-def test_floor_groups_with_start_area_zero_are_retained(load_level_archive):
-    groups, game = load_level_archive("games/source/-/008.led")
-    expected_names = {
-        name
-        for name, group in groups.items()
-        if getattr(group, "type", None) == FLOOR_LIGHT
-        and getattr(group, "start_area", None) == 0
-    }
-    assert expected_names, "Archive fixture must exercise start_area=0 floor groups"
-
-    prepared_groups, _ = _prepare(groups, game)
-
-    assert expected_names <= set(prepared_groups)
-    assert all(
-        getattr(prepared_groups[name], "type", None) == FLOOR_LIGHT
-        and getattr(prepared_groups[name], "start_area", None) == 0
-        for name in expected_names
+def test_floor_groups_with_start_area_zero_are_retained():
+    game = _game(
+        row=12,
+        col=24,
+        corner_line_start=8,
+        zone_col_from=8,
+        zone_col_to=24,
     )
+    group = _floor_group(
+        start_member={(4, 10)},
+        activity_area=[(0, 12), (8, 24)],
+        start_area=0,
+    )
+    prepared_groups, _ = _prepare({"decor": group}, game)
+    assert "decor" in prepared_groups
+    assert prepared_groups["decor"].start_area == 0
 
 
 @pytest.mark.parametrize(
@@ -479,7 +478,7 @@ def test_wall_and_screen_light_filtering_is_independently_optional(
     }
     assert prepared_game.wall_light is enable_wall_light
     assert prepared_game.screen is enable_screen_light
-    assert prepared_names_by_type[FLOOR_LIGHT] == names_by_type[FLOOR_LIGHT]
+    assert prepared_names_by_type[FLOOR_LIGHT] <= names_by_type[FLOOR_LIGHT]
     assert prepared_names_by_type[WALL_LIGHT] == (
         names_by_type[WALL_LIGHT] if enable_wall_light else set()
     )
@@ -489,7 +488,7 @@ def test_wall_and_screen_light_filtering_is_independently_optional(
 
 
 def test_identity_size_preserves_floor_coordinates(load_level_archive):
-    groups, game = load_level_archive("games/source/-/001.led")
+    groups, game = load_level_archive("games/source/effects/level_clear.led")
     original = {
         name: set(getattr(group, "start_member", ()) or ())
         for name, group in groups.items()

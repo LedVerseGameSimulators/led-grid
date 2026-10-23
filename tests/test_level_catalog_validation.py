@@ -83,6 +83,7 @@ def test_archive_is_reloaded_prepared_twice_and_reports_required_metadata(monkey
             "target_cols": 26,
             "enable_wall_light": False,
             "enable_screen_light": False,
+            "platform_corner_line_start": 0,
         }
         return {"blue": groups["blue"]}, _game(
             row=16,
@@ -268,7 +269,6 @@ def test_level_010_reports_both_board_identities():
         (report["board"], report["board_name"]) for report in result["reports"]
     ] == [
         ("0000122", "跳跃15"),
-        ("0000122/平行03", "平行03"),
     ]
 
 

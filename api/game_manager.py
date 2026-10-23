@@ -649,6 +649,9 @@ def _prepare_level_attempt(
             target_cols=led_table.led_col,
             enable_wall_light=wall_enabled,
             enable_screen_light=screen_enabled,
+            platform_corner_line_start=int(
+                settings.get("corner_line_start", 0) or 0
+            ),
         )
     except Exception as exc:
         raise ValueError(f"Level {level_id} scaling failed: {exc}") from exc

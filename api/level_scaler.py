@@ -10,7 +10,12 @@ from typing import Any as _Any
 from typing import Iterable as _Iterable
 from typing import Mapping as _Mapping
 
-__all__ = ("scale_cells", "scale_range", "prepare_level_for_platform")
+__all__ = (
+    "scale_cells",
+    "scale_range",
+    "prepare_level_for_platform",
+    "should_strip_adapt_level",
+)
 
 _FLOOR_LIGHT = "floor_light"
 _WALL_LIGHT = "wall_light"
@@ -236,6 +241,49 @@ def _validate_linear_members(members, *, group_name, group_type):
             )
 
 
+def _floor_art_occupies_wall_strip(groups: _Mapping[_Any, _Any], corner: int) -> bool:
+    """True when any floor group places art or travel bounds in strip columns [0, corner)."""
+    if corner <= 0:
+        return False
+    for original_group in groups.values():
+        if getattr(original_group, "type", None) != _FLOOR_LIGHT:
+            continue
+        members = getattr(original_group, "start_member", None)
+        if members is not None:
+            try:
+                raw_members = list(members)
+            except TypeError:
+                raw_members = []
+            for member_index, member in enumerate(raw_members):
+                if not isinstance(member, (tuple, list)) or len(member) != 2:
+                    continue
+                col = _integer(
+                    member[1],
+                    f"strip probe member {member_index} col",
+                )
+                if col < corner:
+                    return True
+    return False
+
+
+def should_strip_adapt_level(
+    groups: _Mapping[_Any, _Any],
+    game: _Any,
+    *,
+    platform_corner_line_start: int = 0,
+) -> bool:
+    """Stretch floor art across the full board only for empty wall-strip levels."""
+    platform_corner_line_start = _integer(
+        platform_corner_line_start, "platform_corner_line_start"
+    )
+    level_corner = _integer(getattr(game, "corner_line_start", 0) or 0, "corner_line_start")
+    return (
+        level_corner > 0
+        and platform_corner_line_start == 0
+        and not _floor_art_occupies_wall_strip(groups, level_corner)
+    )
+
+
 def _strip_adapt_col_range(
     col_from: int,
     col_to: int,
@@ -347,7 +395,11 @@ def prepare_level_for_platform(
     level_corner = _integer(getattr(game, "corner_line_start", 0) or 0, "corner_line_start")
     if level_corner < 0:
         raise ValueError(f"{context} corner_line_start must be non-negative")
-    strip_adapt = level_corner > 0 and platform_corner_line_start == 0
+    strip_adapt = should_strip_adapt_level(
+        groups,
+        game,
+        platform_corner_line_start=platform_corner_line_start,
+    )
     floor_source_cols = source_cols
     if strip_adapt:
         if level_corner >= source_cols:

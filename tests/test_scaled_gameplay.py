@@ -435,10 +435,7 @@ def test_load_prepare_consume_reload_prepare_restores_initial_set(
         if getattr(group, "type", None) == FLOOR_LIGHT
     }
     assert restored == initial
-    if (
-        (raw_game.row, raw_game.col) == (16, 26)
-        and not getattr(raw_game, "corner_line_start", 0)
-    ):
+    if (raw_game.row, raw_game.col) == (16, 26):
         raw_floor = {
             name: set(getattr(group, "start_member", ()) or ())
             for name, group in raw_groups.items()

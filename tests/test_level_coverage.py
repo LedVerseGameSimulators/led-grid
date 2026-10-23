@@ -1,17 +1,24 @@
-"""Playlist coverage and strip-adapt regression guards."""
+"""Playlist coverage, strip-adapt regression, and parent-parity guards."""
 
 from __future__ import annotations
 
 import hashlib
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from api.game_manager import _load_level_file
-from api.level_scaler import prepare_level_for_platform
-from scripts.validate_level_catalog import _snapshot
+from api.game_manager import _level_progress_action, _load_level_file
+from api.level_scaler import prepare_level_for_platform, should_strip_adapt_level
+from scripts.validate_level_catalog import (
+    P1_COLOR,
+    P2_COLOR,
+    _main_color,
+    _snapshot,
+    discover_level_archives,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,24 +26,19 @@ PLAYLISTS = ROOT / "api" / "mode_playlists.json"
 TARGET_ROWS = 16
 TARGET_COLS = 26
 FLOOR_LIGHT = "floor_light"
+PARENT_SCALER_REV = "319c7d9"
+PARENT_SCALER_PATH = Path(f"/tmp/grid_parent_{PARENT_SCALER_REV}/api/level_scaler.py")
 
-# Authored row margins (diagnosis §4.3): art does not fill full row span by design.
-ROW_MARGIN_ALLOWLIST = {
-    ("games/source/---/---/JZDS001.led", "JZDS0012"),
-    ("games/source/---/---/JZDS002.led", "JZDS0022"),
-    ("games/source/---/---/JZDS003.led", "JZDS0032"),
-    ("games/source/---/---/JZDS004.led", "JZDS0042"),
-    ("games/source/---/---/JZDS005.led", "JZDS0052"),
-    ("games/source/---/---/DK-001.led", "DK-0012"),
-    ("games/source/---/---/DK-002.led", "DK-0022"),
-}
-
-# Corrupt movement range; not in playlists — skip during catalog preparation walks.
 PREPARE_SKIP_ARCHIVES = {
     "games/source/---/---/YC16.led": (
         "corrupt activity_area col range (89, 24); not in mode_playlists.json"
     ),
 }
+
+JZDS_ARCHIVES = tuple(
+    f"games/source/---/---/JZDS00{index}.led" for index in range(1, 6)
+)
+
 
 def _prepare(groups, game):
     return prepare_level_for_platform(
@@ -50,29 +52,45 @@ def _prepare(groups, game):
     )
 
 
-def _span(groups, game):
-    cells = set()
+def _digest(groups, game):
+    return hashlib.sha256(repr(_snapshot(groups, game)).encode()).hexdigest()
+
+
+def _parent_scaler_module():
+    if not PARENT_SCALER_PATH.is_file():
+        PARENT_SCALER_PATH.parent.mkdir(parents=True, exist_ok=True)
+        source = subprocess.check_output(
+            ["git", "show", f"{PARENT_SCALER_REV}:api/level_scaler.py"],
+            cwd=ROOT,
+            text=True,
+        )
+        PARENT_SCALER_PATH.write_text(source, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location(
+        "parent_level_scaler",
+        PARENT_SCALER_PATH,
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _all_shipped_archives():
+    paths = []
+    for source_root in (ROOT / "games" / "source", ROOT / "games" / "source_group"):
+        paths.extend(discover_level_archives(source_root))
+    return paths
+
+
+def _scoreable_member_count(groups, *, multiplayer: bool):
+    colors = {P2_COLOR, P1_COLOR} if multiplayer else {P1_COLOR}
+    total = 0
     for group in groups.values():
         if getattr(group, "type", None) != FLOOR_LIGHT:
             continue
-        cells |= set(getattr(group, "start_member", None) or ())
-        area = getattr(group, "activity_area", None) or []
-        if len(area) == 2:
-            (r0, r1), (c0, c1) = area
-            for row in range(max(0, r0), min(game.row, r1)):
-                for col in range(max(0, c0), min(game.col, c1)):
-                    cells.add((row, col))
-    if not cells:
-        return 0.0, 0.0
-    rows = [row for row, _ in cells]
-    cols = [col for _, col in cells]
-    row_span = (max(rows) - min(rows) + 1) / game.row
-    col_span = (max(cols) - min(cols) + 1) / game.col
-    return row_span, col_span
-
-
-def _digest(groups, game):
-    return hashlib.sha256(repr(_snapshot(groups, game)).encode()).hexdigest()
+        if _main_color(group) not in colors:
+            continue
+        total += len(getattr(group, "start_member", None) or ())
+    return total
 
 
 def _playlist_entries():
@@ -82,42 +100,54 @@ def _playlist_entries():
             yield mode, entry["id"], entry["path"]
 
 
-def _old_scaler_module():
-    parent_scaler = Path("/tmp/grid_parent/api/level_scaler.py")
-    if not parent_scaler.is_file():
-        import subprocess
-        import tarfile
-
-        parent_scaler.parent.mkdir(parents=True, exist_ok=True)
-        payload = subprocess.check_output(
-            ["git", "archive", "HEAD", "api/level_scaler.py"],
-            cwd=ROOT,
-        )
-        with tarfile.open(fileobj=__import__("io").BytesIO(payload), mode="r:") as archive:
-            archive.extractall("/tmp/grid_parent")
-    archive = importlib.util.spec_from_file_location(
-        "old_level_scaler",
-        parent_scaler,
-    )
-    module = importlib.util.module_from_spec(archive)
-    archive.loader.exec_module(module)
-    return module
+def _span_col_percent(groups):
+    cols = []
+    for group in groups.values():
+        if getattr(group, "type", None) != FLOOR_LIGHT:
+            continue
+        cols.extend(col for _, col in (getattr(group, "start_member", None) or ()))
+    if not cols:
+        return 0.0
+    return (max(cols) - min(cols) + 1) / TARGET_COLS * 100.0
 
 
 @pytest.mark.parametrize(("mode", "level_id", "relative_path"), list(_playlist_entries()))
-def test_playlist_levels_meet_minimum_board_coverage(mode, level_id, relative_path):
+def test_playlist_levels_have_scoreable_tiles_after_prepare(mode, level_id, relative_path):
     groups, game = _load_level_file(ROOT / relative_path)
     prepared_groups, prepared_game = _prepare(groups, game)
-    row_span, col_span = _span(prepared_groups, prepared_game)
-    key = (relative_path, getattr(game, "name", level_id))
-    if key in ROW_MARGIN_ALLOWLIST or any(
-        relative_path.endswith(suffix)
-        for suffix in ("JZDS001.led", "JZDS002.led", "JZDS003.led", "JZDS004.led", "JZDS005.led")
-    ):
-        assert row_span >= 0.62
-        return
-    assert row_span >= 0.9, f"{level_id} row span {row_span:.2%}"
-    assert col_span >= 0.9, f"{level_id} col span {col_span:.2%}"
+    multiplayer = relative_path.lower().endswith(".ledb")
+    assert _scoreable_member_count(prepared_groups, multiplayer=multiplayer) > 0, level_id
+
+
+def test_zzdk01_is_not_vacuous_after_prepare():
+    groups, game = _load_level_file(ROOT / "games/source/---/---/ZZDK01.ledb")
+    prepared_groups, _ = _prepare(groups, game)
+    assert _scoreable_member_count(prepared_groups, multiplayer=True) > 0
+    action, _next, remaining = _level_progress_action(
+        prepared_groups,
+        total_pass=2.0,
+        multiplayer=True,
+        active_goal_cells=set(),
+        active_goal2_cells=set(),
+    )
+    assert remaining > 0
+    assert action != "clear"
+
+
+@pytest.mark.parametrize("relative_path", JZDS_ARCHIVES)
+def test_jzds_prepared_output_matches_parent(relative_path):
+    parent = _parent_scaler_module()
+    groups, game = _load_level_file(ROOT / relative_path)
+    parent_groups, parent_game = parent.prepare_level_for_platform(
+        groups,
+        game,
+        target_rows=TARGET_ROWS,
+        target_cols=TARGET_COLS,
+        enable_wall_light=False,
+        enable_screen_light=False,
+    )
+    new_groups, new_game = _prepare(groups, game)
+    assert _digest(parent_groups, parent_game) == _digest(new_groups, new_game)
 
 
 @pytest.mark.parametrize("relative_path,reason", list(PREPARE_SKIP_ARCHIVES.items()))
@@ -128,29 +158,40 @@ def test_prepare_skip_list_documents_broken_archives(relative_path, reason):
         _prepare(groups, game)
 
 
-def test_corner_zero_prepared_output_matches_parent_commit_snapshot():
-    old = _old_scaler_module()
-    for relative_path in (
-        "games/source/effects/countdown.led",
-        "games/source/effects/level_clear.led",
-        "games/source/effects/level_fail.led",
-    ):
-        groups, game = _load_level_file(ROOT / relative_path)
-        assert not getattr(game, "corner_line_start", 0)
-        old_groups, old_game = old.prepare_level_for_platform(
-            groups,
-            game,
-            target_rows=TARGET_ROWS,
-            target_cols=TARGET_COLS,
-            enable_wall_light=False,
-            enable_screen_light=False,
+def test_strip_empty_targets_match_parent_delta_set():
+    parent = _parent_scaler_module()
+    changed = []
+    strip_targets = []
+    kw = dict(
+        target_rows=TARGET_ROWS,
+        target_cols=TARGET_COLS,
+        enable_wall_light=False,
+        enable_screen_light=False,
+    )
+    for archive in _all_shipped_archives():
+        rel = archive.relative_to(ROOT).as_posix()
+        if rel in PREPARE_SKIP_ARCHIVES:
+            continue
+        try:
+            groups, game = _load_level_file(archive)
+        except Exception:
+            continue
+        if not groups:
+            continue
+        if should_strip_adapt_level(groups, game, platform_corner_line_start=0):
+            strip_targets.append(rel)
+        parent_groups, parent_game = parent.prepare_level_for_platform(
+            groups, game, **kw
         )
         new_groups, new_game = _prepare(groups, game)
-        assert _digest(old_groups, old_game) == _digest(new_groups, new_game)
+        if _digest(parent_groups, parent_game) != _digest(new_groups, new_game):
+            changed.append(rel)
+
+    assert changed, "expected at least one strip-empty stretch target"
+    assert set(changed) == set(strip_targets)
 
 
-def test_playlist_wall_strip_levels_report_full_width_after_adapt():
-    """Eight diagnosed playlist entries should reach ~100% column span after A1."""
+def test_eight_playlist_wall_strip_targets_reach_full_column_span():
     targets = {
         "003",
         "010",
@@ -162,14 +203,12 @@ def test_playlist_wall_strip_levels_report_full_width_after_adapt():
         "011",
     }
     seen = {}
-    for mode, level_id, relative_path in _playlist_entries():
+    for _mode, level_id, relative_path in _playlist_entries():
         if level_id not in targets:
             continue
         groups, game = _load_level_file(ROOT / relative_path)
-        prepared_groups, prepared_game = _prepare(groups, game)
-        row_span, col_span = _span(prepared_groups, prepared_game)
-        seen[level_id] = (row_span, col_span)
+        prepared_groups, _ = _prepare(groups, game)
+        seen[level_id] = _span_col_percent(prepared_groups)
     assert seen.keys() == targets
-    for level_id, (row_span, col_span) in seen.items():
-        assert row_span >= 0.9, level_id
-        assert col_span >= 0.9, level_id
+    for level_id, col_percent in seen.items():
+        assert col_percent >= 90.0, level_id

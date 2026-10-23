@@ -934,6 +934,21 @@ def _scoreable_colors(multiplayer):
     return _GRID_SCORE_COLORS_2P if multiplayer else _GRID_SCORE_COLORS_1P
 
 
+def build_led_display_from_cell_win(cell_win, rows, cols, total_pass=0.0):
+    """Build the playing-phase RGB buffer (same logic as the runtime frame callback)."""
+    import math as _math
+
+    pulse = 0.60 + 0.40 * (0.5 + 0.5 * _math.sin(total_pass * _math.pi * 2))
+    led_display = [[0, 0, 0] for _ in range(rows * cols)]
+    for (ci, cj), (_rank, cat, mc) in cell_win.items():
+        idx = ci * cols + cj
+        if cat in ("goal", "p1", "p2"):
+            led_display[idx] = [int(ch * pulse) for ch in mc]
+        else:
+            led_display[idx] = [int(mc[0]), int(mc[1]), int(mc[2])]
+    return led_display
+
+
 def _classify_floor_groups(groups, *, total_pass, multiplayer, rows, cols):
     """Classify active floor cells with the runtime's overlap priority."""
     winners = {}
@@ -2088,16 +2103,9 @@ class GameManager:
                         # Single RGB per cell (16×26 square grid).
                         cols = led_table.led_col
                         rows = led_table.led_row
-                        import math as _math
-                        pulse = 0.60 + 0.40 * (0.5 + 0.5 * _math.sin(total_pass * _math.pi * 2))
-                        led_display = [[0, 0, 0] for _ in range(rows * cols)]
-                        for (ci, cj), (rank, cat, mc) in cell_win.items():
-                            idx = ci * cols + cj
-                            if cat in ("goal", "p1", "p2"):
-                                # scoreable tiles shimmer
-                                led_display[idx] = [int(ch * pulse) for ch in mc]
-                            else:
-                                led_display[idx] = [int(mc[0]), int(mc[1]), int(mc[2])]
+                        led_display = build_led_display_from_cell_win(
+                            cell_win, rows, cols, total_pass=total_pass
+                        )
 
                         # Hardware LED: draw after building display buffer (valid RGB).
                         if USE_SERIAL_HD and _hw_led_control is not None:

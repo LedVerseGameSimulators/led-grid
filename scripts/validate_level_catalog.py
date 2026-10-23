@@ -337,7 +337,7 @@ def _report_from_runs(
     )
     if not scoreable_members:
         raise CatalogValidationError(
-            "no scoreable floor members on an expected playable board"
+            "vacuous playable board: no scoreable floor members for 1P/MP"
         )
 
     p1_colors = sorted(
@@ -412,6 +412,7 @@ def validate_archive_boards(
 ) -> dict[str, Any]:
     """Validate every deterministic main board in one archive twice."""
     path = Path(path)
+    # Parallel wall-strip shelves (identity contains 平行) are not played on Grid.
     board_runs = [
         discover_main_gameplay_boards(path, include_parallel_wall_strip=False),
         discover_main_gameplay_boards(path, include_parallel_wall_strip=False),

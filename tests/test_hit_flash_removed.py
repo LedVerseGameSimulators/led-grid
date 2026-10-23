@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import time
-from types import SimpleNamespace
-
 from api import game_manager
-from api.game_manager import _FLASH_ON_COLOR
+from api.game_manager import _FLASH_ON_COLOR, build_led_display_from_cell_win
 from model.setting import Color, Setting
 
 FLOOR_LIGHT = Setting.FLOOR_LIGHT
 
 
 def _game_with_group(cells, rgb):
+    from types import SimpleNamespace
+
     group = SimpleNamespace(
         type=FLOOR_LIGHT,
         color=[rgb, rgb, rgb],
@@ -35,17 +34,17 @@ def _game_with_group(cells, rgb):
     return game, group
 
 
-def _led_display_after_flash_overlay(game, cell, cols=26):
-    """What the removed 2b FLASH block would paint on top of a black cell."""
-    led_display = [[0, 0, 0] for _ in range(16 * cols)]
-    now = time.time()
-    for flash_cell, t0 in list(game.flashes.items()):
-        el = now - t0
-        if el > 0.4:
-            continue
-        fi, fj = flash_cell
-        on = int(el / 0.1) % 2 == 0
-        led_display[fi * cols + fj] = list(_FLASH_ON_COLOR) if on else [0, 0, 0]
+def _led_display_at_cell(game, cell, cols=26, rows=16):
+    classified = game_manager._classify_floor_groups(
+        game.dict_group,
+        total_pass=0,
+        multiplayer=game.multiplayer,
+        rows=rows,
+        cols=cols,
+    )
+    led_display = build_led_display_from_cell_win(
+        classified["winners"], rows, cols, total_pass=0
+    )
     i, j = cell
     return led_display[i * cols + j]
 
@@ -60,7 +59,7 @@ def test_goal_cell_score_consumes_without_hit_flash():
     assert game.score == 1
     assert cell not in group.start_member
     assert game.flashes == {}
-    assert _led_display_after_flash_overlay(game, cell) != list(_FLASH_ON_COLOR)
+    assert _led_display_at_cell(game, cell) != list(_FLASH_ON_COLOR)
 
 
 def test_deduct_tile_consume_without_hit_flash():
@@ -72,4 +71,4 @@ def test_deduct_tile_consume_without_hit_flash():
 
     assert cell not in group.start_member
     assert game.flashes == {}
-    assert _led_display_after_flash_overlay(game, cell) != list(_FLASH_ON_COLOR)
+    assert _led_display_at_cell(game, cell) != list(_FLASH_ON_COLOR)

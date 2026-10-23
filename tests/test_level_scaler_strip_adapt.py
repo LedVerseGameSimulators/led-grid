@@ -6,7 +6,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from api.level_scaler import prepare_level_for_platform, scale_cells
+from api.level_scaler import (
+    prepare_level_for_platform,
+    scale_cells,
+    should_strip_adapt_level,
+)
 
 
 TARGET_ROWS = 16
@@ -151,24 +155,28 @@ def test_left_edge_floor_tile_maps_to_column_zero(mode, source_member, expected_
     assert expected_col in cols
 
 
-def test_strip_only_floor_group_is_dropped():
+def test_strip_adapt_skipped_when_any_floor_member_lies_in_wall_strip():
     strip_group = _floor_group(
         name="strip",
         start_member={(2, 0), (3, 7)},
         activity_area=[(0, 12), (0, 8)],
         scale="none",
     )
-    floor_group = _floor_group(name="floor")
+    floor_group = _floor_group(name="floor", start_member={(4, 10)})
+    game = _game()
+    assert not should_strip_adapt_level(
+        {"strip": strip_group, "floor": floor_group}, game
+    )
     prepared, _ = prepare_level_for_platform(
         {"strip": strip_group, "floor": floor_group},
-        _game(),
+        game,
         target_rows=TARGET_ROWS,
         target_cols=TARGET_COLS,
         enable_wall_light=False,
         enable_screen_light=False,
         platform_corner_line_start=0,
     )
-    assert "strip" not in prepared
+    assert "strip" in prepared
     assert "floor" in prepared
 
 

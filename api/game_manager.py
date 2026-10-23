@@ -1199,7 +1199,7 @@ class GameInstance:
         self.play = None  # Play object
         self.led_table = None  # LedTable instance (for press input)
         self.dict_group = None  # level groups (for consume-on-hit)
-        self.flashes = {}  # cell -> wall-clock start time (display-only hit flash)
+        self.flashes = {}
         self.score = 0  # accumulated score from presses on lit tiles
         self.scored_active = set()  # goal cells already scored this appearance
         # Per-frame cell classification (rebuilt each frame from dict_group):
@@ -1476,7 +1476,7 @@ class GameInstance:
         """Type-aware scoring for a press on cell (i,j):
           - red hazard cell  -> 1P: -1 score + -1 HP; MP: life only (rate-limited)
           - DEDUCT tile      -> 1P: -1 score + consume; MP: life only + consume
-          - goal_led target  -> +1 point + consume (tile blanks) + flash
+          - goal_led target  -> +1 point + consume (tile blanks)
           - background decor  -> nothing (neutral)
         goal/red membership is classified per frame in the callback."""
         if total_pass is None:
@@ -1588,8 +1588,6 @@ class GameInstance:
                             self.pending_respawn.append([g, (i, j), reappear_at])
                     except Exception:
                         pass
-        # display-only hit flash (white blink) for ~0.4s
-        self.flashes[(i, j)] = time.time()
 
     def process_respawns(self):
         """Re-add consumed 2P goal tiles after respawn_delay. Per-frame."""
@@ -2097,17 +2095,6 @@ class GameManager:
                                 led_display[idx] = [int(ch * pulse) for ch in mc]
                             else:
                                 led_display[idx] = [int(mc[0]), int(mc[1]), int(mc[2])]
-
-                        # 2b) FLASH: stepped tiles blink white ~0.4s then vanish.
-                        now = time.time()
-                        for cell, t0 in list(game.flashes.items()):
-                            el = now - t0
-                            if el > 0.4:
-                                game.flashes.pop(cell, None)
-                                continue
-                            fi, fj = cell
-                            on = int(el / 0.1) % 2 == 0
-                            led_display[fi * cols + fj] = list(_FLASH_ON_COLOR) if on else [0, 0, 0]
 
                         # Hardware LED: draw after building display buffer (valid RGB).
                         if USE_SERIAL_HD and _hw_led_control is not None:

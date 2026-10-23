@@ -41,7 +41,7 @@ KNOWN_LEGACY_EXCLUSIONS = {
     (
         "---/---/JZDS002.led",
         "JZDS0022",
-    ): "no scoreable floor members on an expected playable board",
+    ): "vacuous playable board: no scoreable floor members for 1P/MP",
     (
         "---/---/YC16.led",
         "YC162",

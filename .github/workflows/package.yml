@@ -125,6 +125,37 @@ jobs:
           Write-Host "RESULT no_leftover_processes=$($left.Count -eq 0)"
           Write-Host "--- supervisor.log"; Get-Content "$stage\logs\supervisor.log" -ErrorAction SilentlyContinue
 
+      - name: Check - gameplay in the frozen exe
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $port = 8003
+          $base = "http://127.0.0.1:$port"
+          $stage = (Get-ChildItem dist\release -Directory | Select-Object -First 1).FullName
+          $exe = Get-ChildItem $stage -Filter "*.exe" | Where-Object { $_.Name -like "LED *" } | Select-Object -First 1 -ExpandProperty FullName
+          Start-Process -FilePath $exe -ArgumentList "--sim","--no-browser" | Out-Null
+          $ok = $false
+          foreach ($i in 1..45) { Start-Sleep 2; try { if ((Invoke-WebRequest "$base/" -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) { $ok = $true; break } } catch {} }
+          Write-Host "RESULT gameplay_api_up=$ok"
+          $pl = Invoke-RestMethod "$base/playlists"
+          $level = $pl.single[0].id
+          $body = @{ card_id = "guest"; level = "$level" } | ConvertTo-Json
+          $r = Invoke-RestMethod -Method Post -Uri "$base/start-game" -ContentType "application/json" -Body $body
+          Write-Host "RESULT start_game_success=$($r.success) level=$level error=$($r.error)"
+          Start-Sleep 4
+          $a = Invoke-RestMethod "$base/active-game"
+          Write-Host "RESULT active_game_running=$($a.success) game_id=$($a.game_id)"
+          # The game shows a countdown intro (clock reads 0) before play starts; wait it out.
+          $s1 = $null
+          foreach ($i in 1..40) { $s1 = Invoke-RestMethod "$base/game-state"; if ($s1.state.time_elapsed -gt 0) { break }; Start-Sleep 2 }
+          Write-Host "RESULT left_countdown=$($s1.state.time_elapsed -gt 0) phase=$($s1.state.phase)"
+          Start-Sleep 3
+          $s2 = Invoke-RestMethod "$base/game-state"
+          Write-Host "RESULT game_clock_advancing=$($s2.state.time_elapsed -gt $s1.state.time_elapsed) t1=$($s1.state.time_elapsed) t2=$($s2.state.time_elapsed)"
+          Write-Host "RESULT led_frame_present=$(($null -ne $s2.state.led_display) -or ($null -ne $s2.state.wall_display))"
+          Get-Content "$stage\logs\api.console.log" -Tail 40 -ErrorAction SilentlyContinue | Select-String -Pattern "Traceback|ERROR" | ForEach-Object { Write-Host "API-LOG $_" }
+          & $exe --stop
+
       - uses: actions/upload-artifact@v4
         with:
           name: LED-Grid-windows-nuitka

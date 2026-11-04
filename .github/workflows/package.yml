@@ -149,6 +149,11 @@ jobs:
           Start-Sleep 3
           $s2 = Invoke-RestMethod "$base/game-state"
           Write-Host "RESULT game_clock_advancing=$($s2.state.time_elapsed -gt $s1.state.time_elapsed) t1=$($s1.state.time_elapsed) t2=$($s2.state.time_elapsed)"
+          Start-Sleep 15
+          $s3 = Invoke-RestMethod "$base/game-state"
+          Write-Host "DEBUG state_after_25s=$(($s3.state | Select-Object * -ExcludeProperty led_display | ConvertTo-Json -Compress -Depth 4))"
+          Write-Host "DEBUG active=$(($a | ConvertTo-Json -Compress -Depth 3))"
+          Get-Content "$stage\logs\api.console.log" -Tail 60 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "DEBUG-API $_" }
           Write-Host "RESULT led_frame_present=$($null -ne $s2.state.led_display)"
           Get-Content "$stage\logs\api.console.log" -Tail 15 -ErrorAction SilentlyContinue | Select-String -Pattern "Traceback|ERROR" | ForEach-Object { Write-Host "API-LOG $_" }
           & $exe --stop

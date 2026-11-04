@@ -457,8 +457,11 @@ def _build_group_level_sequence(start_level=None):
     return seq
 
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-_MODE_PLAYLISTS_JSON = _REPO_ROOT / "api" / "mode_playlists.json"
+def _mode_playlists_json_path():
+    from .runtime_paths import install_root
+    return install_root() / "api" / "mode_playlists.json"
+
+
 _mode_playlists_cache: Optional[Dict[str, Any]] = None
 
 
@@ -467,11 +470,12 @@ def _load_mode_playlists() -> Dict[str, Any]:
     global _mode_playlists_cache
     if _mode_playlists_cache is not None:
         return _mode_playlists_cache
-    if not _MODE_PLAYLISTS_JSON.is_file():
+    _pl_path = _mode_playlists_json_path()
+    if not _pl_path.is_file():
         _mode_playlists_cache = {}
         return _mode_playlists_cache
     try:
-        with open(_MODE_PLAYLISTS_JSON, encoding="utf-8") as f:
+        with open(_pl_path, encoding="utf-8") as f:
             _mode_playlists_cache = json.load(f)
     except Exception as e:
         logger.warning(f"Could not load mode playlists: {e}")
@@ -488,7 +492,8 @@ def _playlist_entry_abs_path(entry: dict) -> Optional[str]:
     rel = entry.get("path")
     if not rel:
         return None
-    return str((_REPO_ROOT / rel).resolve())
+    from .runtime_paths import install_root
+    return str((install_root() / rel).resolve())
 
 
 def _playlists_configured() -> bool:

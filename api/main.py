@@ -9,6 +9,7 @@ import json
 from loguru import logger
 import datetime
 
+from .runtime_paths import ui_dir
 from .config import API_HOST, API_PORT, API_DEBUG, GAME_NAME, GAMES_ROOT
 from .models import (
     LoginRequest, LoginResponse, PlayerInfo,
@@ -562,6 +563,28 @@ async def shutdown():
     logger.info("API shutting down")
     if db:
         db.close()
+
+
+# ============= STATIC UI (mount LAST so API routes win) =============
+# Packaged build: the API serves the React UI (replaces `vite preview` on 5176).
+# Dev (no frontend/dist): nothing is mounted, the dev stack runs vite separately.
+_ui_path = ui_dir()
+if _ui_path.is_dir() and (_ui_path / "index.html").is_file():
+    from fastapi.responses import HTMLResponse
+    from fastapi.staticfiles import StaticFiles
+    from .activerse_config import inject_runtime_config
+
+    @app.get("/", include_in_schema=False)
+    @app.get("/index.html", include_in_schema=False)
+    async def _ui_index():
+        # Read per request so edits to games/setting/activerse.json apply on reload.
+        html = (_ui_path / "index.html").read_text(encoding="utf-8")
+        return HTMLResponse(inject_runtime_config(html), headers={"Cache-Control": "no-store"})
+
+    app.mount("/", StaticFiles(directory=str(_ui_path), html=True), name="ui")
+    logger.info(f"Serving UI from {_ui_path}")
+else:
+    logger.info(f"UI not served (no index.html in {_ui_path})")
 
 
 # ============= RUN =============

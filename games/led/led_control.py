@@ -7,7 +7,8 @@ import os
 import shelve, sys
 import encryption.yanqian as yanqian
 
-_GAMES_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Frozen (Nuitka) builds report __file__ under the install root, not games/; the supervisor exports GAMES_ROOT.
+_GAMES_DIR = os.environ.get('GAMES_ROOT') or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DEBUG_PARAM = os.path.join(_GAMES_DIR, 'setting', 'debug_parameter')
 from led import communication, position_convert
 from loguru import logger

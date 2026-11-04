@@ -6,6 +6,7 @@ Connects to http://localhost:8000 API, broadcasts game state via WebSocket
 import asyncio
 import json
 import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -17,11 +18,23 @@ from fastapi.staticfiles import StaticFiles
 import uvicorn
 import httpx
 
+# Allow running as script or frozen binary: repo root / install root on path.
+_ROOT = Path(__file__).resolve().parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+try:
+    from api.runtime_paths import simulator_static as _simulator_static
+except ImportError:  # pragma: no cover
+    def _simulator_static():
+        return Path(__file__).resolve().parent / "simulator" / "static"
+
 app = FastAPI()
 
-# Serve static simulator files
-SIMULATOR_STATIC = str(Path(__file__).resolve().parent / "simulator" / "static")
-app.mount("/static", StaticFiles(directory=SIMULATOR_STATIC), name="static")
+# Serve static simulator files (install_root/simulator/static when frozen)
+SIMULATOR_STATIC = str(_simulator_static())
+if Path(SIMULATOR_STATIC).is_dir():
+    app.mount("/static", StaticFiles(directory=SIMULATOR_STATIC), name="static")
 
 HOST = "127.0.0.1"
 _DEFAULT_API_PORT = 8003

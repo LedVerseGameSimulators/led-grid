@@ -20,3 +20,9 @@ games/source/**/*.dat
 games/source/**/*.bak
 games/source/**/*.dir
 games/source/**/*.mp3
+
+# K2b freeze / packaging
+dist/
+packaging/.venv/
+*.spec
+build/

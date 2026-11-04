@@ -1,0 +1,138 @@
+name: Package operator build
+
+# Binary-only operator package (no Python/JS source). Manual run = build + smoke
+# + downloadable artifact. A v* tag also publishes a GitHub Release.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+    # Pre-merge validation: workflow_dispatch only works once this file is on main.
+    branches: ["feature/k2b-binary-packaging"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows-nuitka:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Fail on LFS pointer stubs in data dirs
+        shell: bash
+        run: |
+          stubs=$(grep -rl "^version https://git-lfs" games/source games/source_group games/audio 2>/dev/null | head -5 || true)
+          if [ -n "$stubs" ]; then echo "LFS pointers not resolved:"; echo "$stubs"; exit 1; fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build (Nuitka)
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "dev-$($env:GITHUB_RUN_NUMBER)" }
+          powershell -File packaging\build_nuitka_windows.ps1 -Tag $tag
+
+      - name: Gate - no source in package
+        shell: pwsh
+        run: |
+          $stage = Get-ChildItem dist\release -Directory | Select-Object -First 1
+          $bad = Get-ChildItem $stage.FullName -Recurse -Include *.py,*.pyc,*.sqlite
+          if ($bad) { $bad | Select-Object -First 20 FullName; throw "forbidden files in package" }
+
+      - name: Smoke - simulator stack comes up from the frozen exe
+        shell: pwsh
+        run: |
+          $stage = (Get-ChildItem dist\release -Directory | Select-Object -First 1).FullName
+          $exe = Join-Path $stage "LED Grid.exe"
+          & $exe --selftest | Tee-Object selftest.txt
+          $p = Start-Process -FilePath $exe -ArgumentList "--sim","--no-browser" -PassThru
+          $ok = $false
+          foreach ($i in 1..45) {
+            Start-Sleep 2
+            try { if ((Invoke-WebRequest http://127.0.0.1:8003/ -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) { $ok = $true; break } } catch {}
+          }
+          if (-not $ok) { Get-Content "$stage\logs\*.log" -ErrorAction SilentlyContinue | Select-Object -Last 80; throw "UI/API did not come up" }
+          $pl = Invoke-RestMethod http://127.0.0.1:8003/playlists
+          if ($pl.single.Count -lt 1) { throw "playlists empty" }
+          $hw = Invoke-RestMethod http://127.0.0.1:8003/hw-debug
+          Write-Host "hw-debug: $($hw | ConvertTo-Json -Compress)"
+          $br = Invoke-WebRequest http://127.0.0.1:8769/docs -UseBasicParsing -TimeoutSec 5
+          & $exe --stop
+
+      # Informational (continue-on-error): results are printed in the log. These
+      # exercise the Windows-only behaviours that need no hardware.
+      - name: Check - hardware flag default (no serial device)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $stage = (Get-ChildItem dist\release -Directory | Select-Object -First 1).FullName
+          $exe = Join-Path $stage "LED Grid.exe"
+          Start-Process -FilePath $exe -ArgumentList "--no-browser" -PassThru | Out-Null
+          $ok = $false
+          foreach ($i in 1..45) { Start-Sleep 2; try { if ((Invoke-WebRequest http://127.0.0.1:8003/ -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) { $ok = $true; break } } catch {} }
+          Write-Host "RESULT api_up_in_hardware_mode=$ok"
+          if ($ok) {
+            $hw = Invoke-RestMethod http://127.0.0.1:8003/hw-debug
+            Write-Host "RESULT use_serial_hd_default=$($hw.use_serial_hd)"
+          }
+          Write-Host "--- api.console.log tail"; Get-Content "$stage\logs\api.console.log" -Tail 25 -ErrorAction SilentlyContinue
+          Write-Host "--- supervisor.log"; Get-Content "$stage\logs\supervisor.log" -ErrorAction SilentlyContinue
+          & $exe --stop
+          Start-Sleep 3
+          $up = $false; try { Invoke-WebRequest http://127.0.0.1:8003/ -UseBasicParsing -TimeoutSec 2 | Out-Null; $up = $true } catch {}
+          Write-Host "RESULT stop_freed_port=$(-not $up)"
+
+      - name: Check - kiosk, Ctrl+Shift+K hotkey, STOP
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $stage = (Get-ChildItem dist\release -Directory | Select-Object -First 1).FullName
+          $exe = Join-Path $stage "LED Grid.exe"
+          function Kiosk { Get-CimInstance Win32_Process -Filter "Name='msedge.exe' OR Name='chrome.exe'" | Where-Object { $_.CommandLine -like "*ActiverseKiosk*grid*" } }
+          function Up { try { (Invoke-WebRequest http://127.0.0.1:8003/ -UseBasicParsing -TimeoutSec 2).StatusCode } catch { 0 } }
+          Start-Process -FilePath $exe -ArgumentList "--sim" | Out-Null
+          $ok = $false
+          foreach ($i in 1..45) { Start-Sleep 2; if ((Up) -eq 200) { $ok = $true; break } }
+          Write-Host "RESULT api_up=$ok"
+          Start-Sleep 10
+          $k = @(Kiosk)
+          Write-Host "RESULT kiosk_running_with_profile=$($k.Count -gt 0) procs=$($k.Count)"
+          $vis = Get-Process | Where-Object { $_.ProcessName -like "LED Grid*" -and $_.MainWindowHandle -ne 0 }
+          Write-Host "RESULT no_visible_exe_window=$(-not $vis)"
+          Add-Type -TypeDefinition @"
+          using System;
+          using System.Runtime.InteropServices;
+          public class Kb { [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra); }
+          "@
+          [Kb]::keybd_event(0x11,0,0,[UIntPtr]::Zero); [Kb]::keybd_event(0x10,0,0,[UIntPtr]::Zero); [Kb]::keybd_event(0x4B,0,0,[UIntPtr]::Zero)
+          Start-Sleep -Milliseconds 150
+          [Kb]::keybd_event(0x4B,0,2,[UIntPtr]::Zero); [Kb]::keybd_event(0x10,0,2,[UIntPtr]::Zero); [Kb]::keybd_event(0x11,0,2,[UIntPtr]::Zero)
+          $gone = $false
+          foreach ($i in 1..10) { Start-Sleep 1; if (-not (Kiosk)) { $gone = $true; break } }
+          Write-Host "RESULT hotkey_closed_kiosk=$gone"
+          Write-Host "RESULT game_alive_after_hotkey=$((Up) -ne 0)"
+          cmd /c "`"$stage\STOP_GAME.bat`""
+          Start-Sleep 4
+          Write-Host "RESULT stop_bat_freed_ports=$((Up) -eq 0)"
+          $left = @(Get-Process | Where-Object { $_.ProcessName -like "LED Grid*" })
+          Write-Host "RESULT no_leftover_processes=$($left.Count -eq 0)"
+          Write-Host "--- supervisor.log"; Get-Content "$stage\logs\supervisor.log" -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LED-Grid-windows-nuitka
+          path: dist/release/*.zip
+          if-no-files-found: error
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/release/*.zip
